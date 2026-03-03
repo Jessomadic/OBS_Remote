@@ -66,6 +66,50 @@ def _open_logs():
         ctypes.windll.user32.MessageBoxW(0, "No log file found yet.", "OBS Remote", 0)
 
 
+def _connect_to_obs(port: int):
+    """POST /api/connect using the saved config values."""
+    cfg = config.load()
+    body = json.dumps({
+        "host": cfg.get("obs_host", "localhost"),
+        "port": cfg.get("obs_port", 4455),
+        "password": cfg.get("obs_password", ""),
+    }).encode()
+    try:
+        proxy_handler = urllib.request.ProxyHandler({})
+        opener = urllib.request.build_opener(proxy_handler)
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/connect",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with opener.open(req, timeout=5) as r:
+            result = json.loads(r.read())
+            return result.get("connected", False)
+    except Exception:
+        return False
+
+
+def _start_service():
+    """Start the Windows service via an elevated PowerShell call."""
+    import ctypes
+    ret = ctypes.windll.shell32.ShellExecuteW(
+        None,
+        "runas",
+        "powershell.exe",
+        '-WindowStyle Hidden -Command "Start-Service OBSRemote"',
+        None,
+        0,
+    )
+    if ret <= 32:
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Could not start the service.\nAdministrator access is required.",
+            "OBS Remote",
+            0x10,
+        )
+
+
 def _restart_service():
     """Restart the Windows service. Uses ShellExecute+runas to get admin elevation."""
     import ctypes
@@ -154,14 +198,17 @@ def run_tray():
             status = _status_cache
         port = _status_port
 
-        if status:
+        server_running = status is not None
+        obs_connected = status.get("obs_connected", False) if status else False
+
+        if server_running:
             server_line = f"Server running  (port {port})"
-            obs_line = "OBS: Connected" if status.get("obs_connected") else "OBS: Not connected"
+            obs_line = "OBS: Connected" if obs_connected else "OBS: Not connected"
         else:
             server_line = f"Server not running  (port {port})"
             obs_line = "OBS: —"
 
-        return [
+        items = [
             pystray.MenuItem(f"OBS Remote v{_version()}", None, enabled=False),
             pystray.MenuItem(server_line, None, enabled=False),
             pystray.MenuItem(obs_line, None, enabled=False),
@@ -170,11 +217,26 @@ def run_tray():
             pystray.MenuItem("Settings / Config", lambda i, it: _open_settings()),
             pystray.MenuItem("View logs", lambda i, it: _open_logs()),
             pystray.Menu.SEPARATOR,
+        ]
+
+        if server_running and not obs_connected:
+            items.append(pystray.MenuItem(
+                "Connect to OBS",
+                lambda i, it: _connect_to_obs(_status_port),
+            ))
+
+        if not server_running:
+            items.append(pystray.MenuItem("Start service", lambda i, it: _start_service()))
+        items.append(pystray.MenuItem("Restart service", lambda i, it: _restart_service()))
+
+        items += [
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Check for updates", lambda i, it: _check_update()),
-            pystray.MenuItem("Restart service", lambda i, it: _restart_service()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit tray icon", _quit),
         ]
+
+        return items
 
     icon = pystray.Icon(
         name="OBSRemote",
