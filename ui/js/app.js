@@ -480,12 +480,15 @@
   async function boot() {
     const status = await refreshStatus();
 
+    // Always fill the form fields with latest config just in case they open Settings
+    if (status.obs_host) $('#obs-host').value = status.obs_host;
+    if (status.obs_port) $('#obs-port').value = status.obs_port;
+    if (status.obs_host) $('#settings-host').value = status.obs_host;
+    if (status.obs_port) $('#settings-port').value = status.obs_port;
+
     if (!status.obs_connected) {
       // Show connect modal
       connectionModal.classList.remove('hidden');
-      // Pre-fill from status if we got host/port back
-      if (status.obs_host) $('#obs-host').value = status.obs_host;
-      if (status.obs_port) $('#obs-port').value = status.obs_port;
     } else {
       connectionModal.classList.add('hidden');
       await initApp();

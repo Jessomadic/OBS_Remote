@@ -35,9 +35,10 @@ def _create_icon_image(color: str = "#7C3AED") -> Image.Image:
 def _get_server_status(port: int) -> dict | None:
     """Query the local server for status. Returns None if unreachable."""
     try:
-        with urllib.request.urlopen(
-            f"http://localhost:{port}/api/status", timeout=2
-        ) as r:
+        # Bypass any user/system proxies that might break localhost requests
+        proxy_handler = urllib.request.ProxyHandler({})
+        opener = urllib.request.build_opener(proxy_handler)
+        with opener.open(f"http://127.0.0.1:{port}/api/status", timeout=2) as r:
             return json.loads(r.read())
     except Exception:
         return None
