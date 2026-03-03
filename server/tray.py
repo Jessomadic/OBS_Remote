@@ -108,7 +108,10 @@ def _check_update():
 
 def _quit(icon, item):
     icon.stop()
-    sys.exit(0)
+    # os._exit bypasses Python cleanup and terminates the whole process
+    # immediately — sys.exit() called from a non-main thread only kills
+    # that thread, leaving the process running.
+    os._exit(0)
 
 
 # ---------------------------------------------------------------------------
