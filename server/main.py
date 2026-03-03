@@ -111,7 +111,7 @@ def _register_obs_events(loop: asyncio.AbstractEventLoop):
     def on_studio(d):
         emit("studio_mode", {"enabled": d.studio_mode_enabled})
 
-    @obs.on_event("SceneCollectionChanged")
+    @obs.on_event("CurrentSceneCollectionChanged")
     def on_collection(d):
         emit("collection_changed", {"collection": d.scene_collection_name})
 
@@ -155,7 +155,12 @@ async def lifespan(app: FastAPI):
 # App
 # ---------------------------------------------------------------------------
 
-UI_DIR = Path(__file__).parent.parent / "ui"
+if getattr(sys, "frozen", False):
+    # Running in a PyInstaller bundle
+    UI_DIR = Path(sys._MEIPASS) / "ui"
+else:
+    # Running in normal Python environment
+    UI_DIR = Path(__file__).parent.parent / "ui"
 
 app = FastAPI(title="OBS Remote", version=__version__, lifespan=lifespan)
 

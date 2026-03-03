@@ -90,13 +90,13 @@ def _register_events():
         "RecordStateChanged",
         "ReplayBufferStateChanged",
         "StudioModeStateChanged",
-        "SceneCollectionChanged",
+        "CurrentSceneCollectionChanged",
         "SceneCollectionListChanged",
         "SourceFilterEnableStateChanged",
     ]
 
     for event in events:
-        callback_name = f"on_{event.lower()}"
+        callback_name = f"on_{_to_snake(event)}"
         handler = make_handler(event)
         if hasattr(_event_client, callback_name):
             setattr(_event_client, callback_name, handler)
