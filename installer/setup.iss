@@ -95,7 +95,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch OBS Remote tray icon"; F
 Filename: "taskkill.exe"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden waituntilterminated; RunOnceId: "KillTray"
 ; Stop and remove service
 Filename: "sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden waituntilterminated; RunOnceId: "StopService"
-Filename: "powershell.exe"; Parameters: "-WindowStyle Hidden -Command ""try { (Get-Service '{#MyServiceName}' -EA Stop).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(15)) } catch {}"""; Flags: runhidden waituntilterminated; RunOnceId: "WaitStopped"
+Filename: "powershell.exe"; Parameters: "-WindowStyle Hidden -Command ""try {{ (Get-Service '{#MyServiceName}' -EA Stop).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(15)) }} catch {{}}"""; Flags: runhidden waituntilterminated; RunOnceId: "WaitStopped"
 Filename: "taskkill.exe"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden waituntilterminated; RunOnceId: "KillTray2"
 Filename: "sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden waituntilterminated; RunOnceId: "DeleteService"
 ; Remove firewall rules
