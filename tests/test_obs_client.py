@@ -175,7 +175,7 @@ def test_req_raises_attribute_error_for_unknown_method(monkeypatch):
     ("GetSceneList",              "get_scene_list"),
     ("SetCurrentProgramScene",    "set_current_program_scene"),
     ("ToggleStream",              "toggle_stream"),
-    ("GetInputVolumeDB",          "get_input_volume_d_b"),
+    ("GetInputVolumeDB",          "get_input_volume_db"),
     ("StudioModeStateChanged",    "studio_mode_state_changed"),
 ])
 def test_to_snake_conversion(pascal, snake):
