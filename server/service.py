@@ -39,7 +39,9 @@ def _ensure_firewall_rules():
     exe = sys.executable  # path to OBSRemote.exe in the install dir
 
     def _run(args):
-        subprocess.run(args, capture_output=True)
+        result = subprocess.run(args, capture_output=True, text=True)
+        if result.returncode != 0 and result.stderr:
+            logger.warning("netsh: %s", result.stderr.strip())
 
     try:
         # Remove any stale rules first so we always have a clean set
@@ -88,7 +90,11 @@ class OBSRemoteService(win32serviceutil.ServiceFramework):
             servicemanager.PYS_SERVICE_STARTED,
             (self._svc_name_, ""),
         )
-        _ensure_firewall_rules()
+        try:
+            _ensure_firewall_rules()
+        except Exception as e:
+            # Non-fatal: server must start even if firewall setup fails
+            logger.warning("Firewall rule setup failed (non-fatal): %s", e)
         self._start_server()
         win32event.WaitForSingleObject(self._stop_event, win32event.INFINITE)
 

@@ -5,7 +5,7 @@
 ; Expects the PyInstaller output in ..\dist\OBSRemote\
 
 #define MyAppName "OBS Remote"
-#define MyAppVersion "1.0.6"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "Jessomadic"
 #define MyAppURL "https://github.com/Jessomadic/OBS_Remote"
 #define MyAppExeName "OBSRemote.exe"

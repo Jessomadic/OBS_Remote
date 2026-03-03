@@ -48,7 +48,7 @@ def get_inputs():
                     "kind": kind,
                     "volume_db": round(vol_resp.input_volume_db, 1),
                     "volume_mul": vol_resp.input_volume_mul,
-                    "muted": mute_resp.video_muted if hasattr(mute_resp, 'video_muted') else mute_resp.input_muted,
+                    "muted": mute_resp.input_muted,
                 })
             except Exception:
                 # Source may not support audio
@@ -60,6 +60,8 @@ def get_inputs():
 
 @router.post("/volume")
 def set_volume(body: SetVolumeRequest):
+    if not -100.0 <= body.volume_db <= 26.0:
+        raise HTTPException(status_code=400, detail="volume_db must be between -100 and 26")
     try:
         obs.req("SetInputVolume", input_name=body.input_name, input_volume_db=body.volume_db)
         return {"ok": True}
