@@ -1,0 +1,10 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+obsws-python==1.7.0
+pywin32==308
+pystray==0.19.5
+Pillow==11.0.0
+requests==2.32.3
+packaging==24.2
+websockets==13.1
+python-multipart==0.0.19
