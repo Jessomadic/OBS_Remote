@@ -20,6 +20,7 @@ from typing import Set
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server import config, obs_client as obs
@@ -269,11 +270,16 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 # ---------------------------------------------------------------------------
-# Static UI — mount at root so relative paths in HTML (css/, js/) resolve correctly
+# Static UI
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+def root():
+    return FileResponse(UI_DIR / "index.html")
+
+
 if UI_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
+    app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
 
 
 # ---------------------------------------------------------------------------
