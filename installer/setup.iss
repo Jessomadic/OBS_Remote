@@ -5,7 +5,7 @@
 ; Expects the PyInstaller output in ..\dist\OBSRemote\
 
 #define MyAppName "OBS Remote"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "Jessomadic"
 #define MyAppURL "https://github.com/Jessomadic/OBS_Remote"
 #define MyAppExeName "OBSRemote.exe"
@@ -26,9 +26,8 @@ AllowNoIcons=yes
 ; Compression
 Compression=lzma2/ultra64
 SolidCompression=yes
-; Require admin for service registration
+; Always require admin — service installation and firewall rules need elevation
 PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
 ; Output
 OutputDir=..\dist
 OutputBaseFilename=OBSRemote_Setup_{#MyAppVersion}
@@ -77,6 +76,8 @@ Filename: "sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden wait
 
 ; Install and start Windows service
 Filename: "{app}\{#MyAppExeName}"; Parameters: "install"; Flags: runhidden waituntilterminated; Description: "Installing Windows service"
+; Belt-and-suspenders: ensure auto-start even if _svc_start_type_ wasn't set in older builds
+Filename: "sc.exe"; Parameters: "config {#MyServiceName} start= auto"; Flags: runhidden waituntilterminated
 Filename: "sc.exe"; Parameters: "start {#MyServiceName}"; Flags: runhidden waituntilterminated; Description: "Starting service"
 
 ; Add Windows Firewall rule so browsers on the local network can reach the web UI

@@ -346,7 +346,8 @@ svg { display: block; flex-shrink: 0; }
   position: relative;
   overflow: hidden;
 }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.btn:disabled,
+.btn.loading { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
 .btn-primary {
   background: var(--accent);
@@ -467,6 +468,8 @@ svg { display: block; flex-shrink: 0; }
   background: var(--danger-hover);
   box-shadow: 0 0 28px rgba(239, 68, 68, 0.5);
 }
+.btn-stream-toggle:disabled,
+.btn-stream-toggle.loading { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
 
 /* ----- Forms ----- */
 .form-group {
@@ -856,6 +859,16 @@ input[type="range"]::-moz-range-thumb {
   color: var(--text-primary);
   border-color: rgba(255,255,255,0.12);
 }
+.scene-btn:disabled,
+.scene-btn.loading {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.scene-btn.switching {
+  opacity: 0.6;
+  pointer-events: none;
+}
 .scene-btn.active {
   background: var(--accent-dim);
   border-color: var(--accent);
@@ -919,6 +932,8 @@ input[type="range"]::-moz-range-thumb {
   transition: all var(--transition);
 }
 .mute-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.mute-btn:disabled,
+.mute-btn.loading { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 .mute-btn.muted {
   background: var(--danger-dim);
   border-color: rgba(239, 68, 68, 0.35);
@@ -1128,6 +1143,8 @@ input[type="range"]::-moz-range-thumb {
   transition: all var(--transition);
 }
 .source-vis-btn:hover { background: var(--bg-elevated); }
+.source-vis-btn:disabled,
+.source-vis-btn.loading { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 .source-vis-btn.visible {
   background: var(--accent-dim);
   border-color: rgba(124, 58, 237, 0.35);

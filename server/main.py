@@ -225,6 +225,16 @@ def disconnect_obs():
     return {"ok": True}
 
 
+@mgmt.post("/update/check")
+def trigger_update_check():
+    """Manually trigger an update check and apply if found."""
+    info = updater.check_now()
+    if info:
+        updater.download_and_apply(info)
+        return {"update_found": True, "version": info["version"], "current": info["current"]}
+    return {"update_found": False, "current": __version__}
+
+
 app.include_router(mgmt)
 
 

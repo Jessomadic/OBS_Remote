@@ -29,6 +29,9 @@ class OBSRemoteService(win32serviceutil.ServiceFramework):
     _svc_name_ = SERVICE_NAME
     _svc_display_name_ = SERVICE_DISPLAY_NAME
     _svc_description_ = SERVICE_DESCRIPTION
+    # Start automatically with Windows — without this pywin32 defaults to
+    # SERVICE_DEMAND_START (manual), so the server never starts after a reboot.
+    _svc_start_type_ = win32service.SERVICE_AUTO_START
 
     def __init__(self, args):
         win32serviceutil.ServiceFramework.__init__(self, args)

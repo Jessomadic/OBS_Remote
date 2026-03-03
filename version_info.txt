@@ -4,8 +4,8 @@
 # http://msdn.microsoft.com/en-us/library/ms646997.aspx
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 2, 0),
-    prodvers=(1, 0, 2, 0),
+    filevers=(1, 0, 3, 0),
+    prodvers=(1, 0, 3, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -21,12 +21,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'Jessomadic'),
             StringStruct(u'FileDescription', u'OBS Remote Control Panel'),
-            StringStruct(u'FileVersion', u'1.0.2'),
+            StringStruct(u'FileVersion', u'1.0.3'),
             StringStruct(u'InternalName', u'OBSRemote'),
             StringStruct(u'LegalCopyright', u'Copyright 2024 Jessomadic'),
             StringStruct(u'OriginalFilename', u'OBSRemote.exe'),
             StringStruct(u'ProductName', u'OBS Remote'),
-            StringStruct(u'ProductVersion', u'1.0.2'),
+            StringStruct(u'ProductVersion', u'1.0.3'),
           ]
         )
       ]

@@ -87,6 +87,20 @@
   }
 
   // -------------------------------------------------------------------------
+  // Button loading helper — disables btn, adds .loading class, re-enables after
+  // -------------------------------------------------------------------------
+  async function withBtnLoading(btn, fn) {
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      await fn();
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Connection status bar
   // -------------------------------------------------------------------------
   const statusDot = document.getElementById('status-dot');
@@ -531,15 +545,17 @@
       const btn = document.createElement('button');
       btn.className = 'scene-btn' + (name === current ? ' active' : '');
       btn.textContent = name;
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         if (name === state.currentScene) return;
-        try {
-          await api.setScene(name);
-          state.currentScene = name;
-          updateActiveScenesUI(name);
-        } catch (err) {
-          showToast(`Failed to switch scene: ${err.message}`, 'error');
-        }
+        withBtnLoading(btn, async () => {
+          try {
+            await api.setScene(name);
+            state.currentScene = name;
+            updateActiveScenesUI(name);
+          } catch (err) {
+            showToast(`Failed to switch scene: ${err.message}`, 'error');
+          }
+        });
       });
       scenesGrid.appendChild(btn);
     }
@@ -672,7 +688,7 @@
     muteBtn.className = 'mute-btn';
     muteBtn.setAttribute('aria-label', input.muted ? 'Unmute' : 'Mute');
     setMuteBtnState(muteBtn, input.muted);
-    muteBtn.addEventListener('click', async () => {
+    muteBtn.addEventListener('click', () => withBtnLoading(muteBtn, async () => {
       try {
         await api.toggleMute(input.name);
         // Optimistic toggle
@@ -681,7 +697,7 @@
       } catch (err) {
         showToast(`Mute error: ${err.message}`, 'error');
       }
-    });
+    }));
 
     header.appendChild(info);
     header.appendChild(muteBtn);
@@ -867,23 +883,23 @@
     else if (!active) recordTimerEl.textContent = '00:00:00';
   }
 
-  streamToggleBtn.addEventListener('click', async () => {
+  streamToggleBtn.addEventListener('click', () => withBtnLoading(streamToggleBtn, async () => {
     try {
       await api.toggleStream();
     } catch (err) {
       showToast(`Stream error: ${err.message}`, 'error');
     }
-  });
+  }));
 
-  recordToggleBtn.addEventListener('click', async () => {
+  recordToggleBtn.addEventListener('click', () => withBtnLoading(recordToggleBtn, async () => {
     try {
       await api.toggleRecord();
     } catch (err) {
       showToast(`Record error: ${err.message}`, 'error');
     }
-  });
+  }));
 
-  recordPauseBtn.addEventListener('click', async () => {
+  recordPauseBtn.addEventListener('click', () => withBtnLoading(recordPauseBtn, async () => {
     try {
       if (state.recordPaused) {
         await api.resumeRecord();
@@ -896,9 +912,9 @@
     } catch (err) {
       showToast(`Record pause error: ${err.message}`, 'error');
     }
-  });
+  }));
 
-  vcamToggleBtn.addEventListener('click', async () => {
+  vcamToggleBtn.addEventListener('click', () => withBtnLoading(vcamToggleBtn, async () => {
     try {
       await api.toggleVirtualCam();
       state.vcamActive = !state.vcamActive;
@@ -907,9 +923,9 @@
     } catch (err) {
       showToast(`Virtual Camera error: ${err.message}`, 'error');
     }
-  });
+  }));
 
-  replayToggleBtn.addEventListener('click', async () => {
+  replayToggleBtn.addEventListener('click', () => withBtnLoading(replayToggleBtn, async () => {
     try {
       await api.toggleReplayBuffer();
       state.replayActive = !state.replayActive;
@@ -918,16 +934,16 @@
     } catch (err) {
       showToast(`Replay Buffer error: ${err.message}`, 'error');
     }
-  });
+  }));
 
-  replaySaveBtn.addEventListener('click', async () => {
+  replaySaveBtn.addEventListener('click', () => withBtnLoading(replaySaveBtn, async () => {
     try {
       await api.saveReplay();
       showToast('Replay saved', 'success');
     } catch (err) {
       showToast(`Save replay error: ${err.message}`, 'error');
     }
-  });
+  }));
 
   // -------------------------------------------------------------------------
   // ===  SOURCES TAB  ===
@@ -1002,7 +1018,7 @@
       const visBtn = document.createElement('button');
       visBtn.className = 'source-vis-btn';
       setVisBtnState(visBtn, source.enabled);
-      visBtn.addEventListener('click', async () => {
+      visBtn.addEventListener('click', () => withBtnLoading(visBtn, async () => {
         const nowEnabled = !visBtn.classList.contains('visible');
         try {
           await api.setSourceVisibility(sceneName, source.id, nowEnabled);
@@ -1011,7 +1027,7 @@
         } catch (err) {
           showToast(`Visibility error: ${err.message}`, 'error');
         }
-      });
+      }));
 
       // Info
       const info = document.createElement('div');
@@ -1114,7 +1130,7 @@
     }
   });
 
-  studioCutBtn.addEventListener('click', async () => {
+  studioCutBtn.addEventListener('click', () => withBtnLoading(studioCutBtn, async () => {
     try {
       await api.studioTransition();
       showToast('Transition triggered', 'success');
@@ -1125,7 +1141,7 @@
     } catch (err) {
       showToast(`Transition error: ${err.message}`, 'error');
     }
-  });
+  }));
 
   studioPreviewSelect.addEventListener('change', async () => {
     const scene = studioPreviewSelect.value;
