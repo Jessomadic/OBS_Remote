@@ -51,6 +51,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "startupicon"; Description: "Start OBS Remote tray icon when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
+[Dirs]
+; Create the shared config/log directory with write access for all users.
+; Without this, the service (SYSTEM) creates it with restrictive ACLs and
+; the tray (user account) can't save config without an admin prompt.
+Name: "{commonappdata}\OBSRemote"; Permissions: users-modify
+
 [Files]
 ; All PyInstaller output files
 Source: "{#DistDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
