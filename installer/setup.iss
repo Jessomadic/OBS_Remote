@@ -5,7 +5,7 @@
 ; Expects the PyInstaller output in ..\dist\OBSRemote\
 
 #define MyAppName "OBS Remote"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "Jessomadic"
 #define MyAppURL "https://github.com/Jessomadic/OBS_Remote"
 #define MyAppExeName "OBSRemote.exe"
@@ -80,9 +80,15 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "install"; Flags: runhidden waitu
 Filename: "sc.exe"; Parameters: "config {#MyServiceName} start= auto"; Flags: runhidden waituntilterminated
 Filename: "sc.exe"; Parameters: "start {#MyServiceName}"; Flags: runhidden waituntilterminated; Description: "Starting service"
 
-; Add Windows Firewall rule so browsers on the local network can reach the web UI
+; Add Windows Firewall rules so browsers on the local network can reach the web UI.
+; Two rules for belt-and-suspenders:
+;   1. Program rule — allows the exe on any profile (works even if network is "Public")
+;   2. Port rule  — allows TCP 42069 inbound (reliable for services running as SYSTEM)
+; Both are deleted on uninstall.
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote"""; Flags: runhidden waituntilterminated
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,domain"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule"
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote Port"""; Flags: runhidden waituntilterminated
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule (program)"
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote Port"" dir=in action=allow protocol=TCP localport=42069 enable=yes profile=any"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule (port)"
 
 ; Launch tray icon now (for new installs with startup task selected)
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch OBS Remote tray icon"; Flags: nowait postinstall skipifsilent; Tasks: startupicon
@@ -93,8 +99,9 @@ Filename: "sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden waitun
 Filename: "sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden waituntilterminated; RunOnceId: "DeleteService"
 ; Kill tray icon
 Filename: "taskkill.exe"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden waituntilterminated; RunOnceId: "KillTray"
-; Remove firewall rule
+; Remove firewall rules
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveFirewall"
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote Port"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveFirewallPort"
 
 [Code]
 function ServiceExists: Boolean;
