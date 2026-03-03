@@ -1,0 +1,3 @@
+# Development / test dependencies (not bundled into the exe)
+pytest>=8.0
+httpx>=0.27   # required by FastAPI TestClient for async support

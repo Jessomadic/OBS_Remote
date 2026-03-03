@@ -1,14 +1,15 @@
 """
 System tray icon for OBS Remote.
 Pure control panel — the Windows Service runs the actual HTTP server.
-The tray queries the server's /api/status endpoint to show live status.
+The tray queries the server's /api/status endpoint to show live status,
+via a background polling thread so the menu renders instantly.
 """
 
 import json
 import os
-import subprocess
 import sys
 import threading
+import time
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -24,9 +25,7 @@ def _create_icon_image(color: str = "#7C3AED") -> Image.Image:
     size = 64
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    # Outer circle
     draw.ellipse([2, 2, size - 2, size - 2], fill=color)
-    # White dot in center
     center = size // 2
     r = size // 6
     draw.ellipse([center - r, center - r, center + r, center + r], fill="white")
@@ -37,7 +36,7 @@ def _get_server_status(port: int) -> dict | None:
     """Query the local server for status. Returns None if unreachable."""
     try:
         with urllib.request.urlopen(
-            f"http://localhost:{port}/api/status", timeout=0.5
+            f"http://localhost:{port}/api/status", timeout=2
         ) as r:
             return json.loads(r.read())
     except Exception:
@@ -51,13 +50,13 @@ def _open_ui():
 
 
 def _open_settings():
-    """Open the config file in Notepad for manual editing."""
+    """Open the config file in the default text editor."""
     from server.config import _CONFIG_FILE
     os.startfile(str(_CONFIG_FILE))
 
 
 def _open_logs():
-    """Open the log file in Notepad."""
+    """Open the log file in the default text editor."""
     log_file = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "OBSRemote" / "obs_remote.log"
     if log_file.exists():
         os.startfile(str(log_file))
@@ -67,14 +66,23 @@ def _open_logs():
 
 
 def _restart_service():
-    subprocess.Popen(
-        ["sc", "stop", "OBSRemote"],
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    ).wait()
-    subprocess.Popen(
-        ["sc", "start", "OBSRemote"],
-        creationflags=subprocess.CREATE_NO_WINDOW,
+    """Restart the Windows service. Uses ShellExecute+runas to get admin elevation."""
+    import ctypes
+    ret = ctypes.windll.shell32.ShellExecuteW(
+        None,
+        "runas",
+        "powershell.exe",
+        '-WindowStyle Hidden -Command "Restart-Service OBSRemote -Force"',
+        None,
+        0,  # SW_HIDE
     )
+    if ret <= 32:
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Could not restart the service.\nAdministrator access is required.",
+            "OBS Remote",
+            0x10,  # MB_ICONERROR
+        )
 
 
 def _check_update():
@@ -103,14 +111,44 @@ def _quit(icon, item):
     sys.exit(0)
 
 
+# ---------------------------------------------------------------------------
+# Background status polling — keeps a cached result so menu renders instantly
+# ---------------------------------------------------------------------------
+
+_status_lock = threading.Lock()
+_status_cache: dict | None = None
+_status_port: int = 42069
+_POLL_INTERVAL = 5  # seconds
+
+
+def _status_poll_loop():
+    """Poll /api/status every 5 seconds and cache the result."""
+    global _status_cache, _status_port
+    while True:
+        try:
+            cfg = config.load()
+            port = cfg.get("server_port", 42069)
+            _status_port = port
+            status = _get_server_status(port)
+        except Exception:
+            status = None
+        with _status_lock:
+            _status_cache = status
+        time.sleep(_POLL_INTERVAL)
+
+
 def run_tray():
     """Start the system tray icon. This call blocks until the icon is stopped."""
     icon_image = _create_icon_image()
 
+    # Start background status poller immediately
+    poll_thread = threading.Thread(target=_status_poll_loop, daemon=True, name="StatusPoll")
+    poll_thread.start()
+
     def menu_items():
-        cfg = config.load()
-        port = cfg.get("server_port", 42069)
-        status = _get_server_status(port)
+        with _status_lock:
+            status = _status_cache
+        port = _status_port
 
         if status:
             server_line = f"Server running  (port {port})"
@@ -124,7 +162,7 @@ def run_tray():
             pystray.MenuItem(server_line, None, enabled=False),
             pystray.MenuItem(obs_line, None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(f"Open UI", lambda i, it: _open_ui()),
+            pystray.MenuItem("Open UI", lambda i, it: _open_ui()),
             pystray.MenuItem("Settings / Config", lambda i, it: _open_settings()),
             pystray.MenuItem("View logs", lambda i, it: _open_logs()),
             pystray.Menu.SEPARATOR,

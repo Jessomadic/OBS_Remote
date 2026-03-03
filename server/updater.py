@@ -82,16 +82,25 @@ def download_and_apply(update_info: dict):
                     f.write(chunk)
             logger.info("Installer downloaded to %s", installer_path)
             _update_applied = True
-            # Run Inno Setup installer silently
-            # /VERYSILENT: no UI at all
-            # /SUPPRESSMSGBOXES: suppress message boxes
-            # /NORESTART: don't force reboot
-            # /CLOSEAPPLICATIONS: close apps using files being replaced
-            subprocess.Popen(
-                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES",
-                 "/NORESTART", "/CLOSEAPPLICATIONS"],
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            )
+            # Run Inno Setup installer silently.
+            # Use ShellExecuteW so Windows can prompt for UAC elevation
+            # (Inno Setup embeds requireAdministrator in its manifest).
+            # subprocess.Popen with CREATE_NO_WINDOW cannot trigger UAC.
+            if sys.platform == "win32":
+                import ctypes
+                ctypes.windll.shell32.ShellExecuteW(
+                    None,
+                    "open",
+                    str(installer_path),
+                    "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS",
+                    None,
+                    0,  # SW_HIDE
+                )
+            else:
+                subprocess.Popen(
+                    [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES",
+                     "/NORESTART", "/CLOSEAPPLICATIONS"],
+                )
         except Exception as e:
             logger.error("Update failed: %s", e)
             _update_applied = False
