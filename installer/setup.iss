@@ -73,6 +73,10 @@ Filename: "sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden wait
 Filename: "{app}\{#MyAppExeName}"; Parameters: "install"; Flags: runhidden waituntilterminated; Description: "Installing Windows service"
 Filename: "sc.exe"; Parameters: "start {#MyServiceName}"; Flags: runhidden waituntilterminated; Description: "Starting service"
 
+; Add Windows Firewall rule so browsers on the local network can reach the web UI
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote"""; Flags: runhidden waituntilterminated
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,domain"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule"
+
 ; Launch tray icon now (for new installs with startup task selected)
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch OBS Remote tray icon"; Flags: nowait postinstall skipifsilent; Tasks: startupicon
 
@@ -82,6 +86,8 @@ Filename: "sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden waitun
 Filename: "sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden waituntilterminated; RunOnceId: "DeleteService"
 ; Kill tray icon
 Filename: "taskkill.exe"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden waituntilterminated; RunOnceId: "KillTray"
+; Remove firewall rule
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS Remote"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveFirewall"
 
 [Code]
 function ServiceExists: Boolean;

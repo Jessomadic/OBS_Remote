@@ -23,13 +23,8 @@ if __name__ == "__main__":
         from server.service import main as service_main
         service_main()
     else:
-        # Start server + tray icon (used when launched from startup shortcut or manually)
-        import threading
-        from server.main import run_server
+        # Tray-only mode: the Windows Service runs the actual HTTP server.
+        # The tray is purely a control panel — starting a second server here
+        # would conflict with the service on the same port.
         from server.tray import run_tray
-
-        server_thread = threading.Thread(target=run_server, daemon=True, name="OBSRemoteServer")
-        server_thread.start()
-
-        # run_tray() blocks until the tray icon is exited
         run_tray()

@@ -1,13 +1,15 @@
 """
 System tray icon for OBS Remote.
-Runs alongside the server so users can open the UI, check status,
-and exit from the notification area.
+Pure control panel — the Windows Service runs the actual HTTP server.
+The tray queries the server's /api/status endpoint to show live status.
 """
 
+import json
 import os
 import subprocess
 import sys
 import threading
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -31,6 +33,17 @@ def _create_icon_image(color: str = "#7C3AED") -> Image.Image:
     return img
 
 
+def _get_server_status(port: int) -> dict | None:
+    """Query the local server for status. Returns None if unreachable."""
+    try:
+        with urllib.request.urlopen(
+            f"http://localhost:{port}/api/status", timeout=0.5
+        ) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
 def _open_ui():
     cfg = config.load()
     port = cfg.get("server_port", 42069)
@@ -39,9 +52,18 @@ def _open_ui():
 
 def _open_settings():
     """Open the config file in Notepad for manual editing."""
-    import os
-    appdata = Path(os.environ.get("APPDATA", Path.home())) / "OBSRemote" / "config.json"
-    os.startfile(str(appdata))
+    from server.config import _CONFIG_FILE
+    os.startfile(str(_CONFIG_FILE))
+
+
+def _open_logs():
+    """Open the log file in Notepad."""
+    log_file = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "OBSRemote" / "obs_remote.log"
+    if log_file.exists():
+        os.startfile(str(log_file))
+    else:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, "No log file found yet.", "OBS Remote", 0)
 
 
 def _restart_service():
@@ -64,7 +86,6 @@ def _check_update():
 
 def _quit(icon, item):
     icon.stop()
-    # Stop the service if running as a service launcher; otherwise just exit
     sys.exit(0)
 
 
@@ -72,29 +93,38 @@ def run_tray():
     """Start the system tray icon. This call blocks until the icon is stopped."""
     icon_image = _create_icon_image()
 
-    def make_menu():
+    def menu_items():
         cfg = config.load()
         port = cfg.get("server_port", 42069)
-        from server import obs_client as obs
-        status = "Connected to OBS" if obs.is_connected() else "OBS not connected"
-        return pystray.Menu(
+        status = _get_server_status(port)
+
+        if status:
+            server_line = f"Server running  (port {port})"
+            obs_line = "OBS: Connected" if status.get("obs_connected") else "OBS: Not connected"
+        else:
+            server_line = f"Server not running  (port {port})"
+            obs_line = "OBS: —"
+
+        return [
             pystray.MenuItem(f"OBS Remote v{_version()}", None, enabled=False),
-            pystray.MenuItem(status, None, enabled=False),
+            pystray.MenuItem(server_line, None, enabled=False),
+            pystray.MenuItem(obs_line, None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(f"Open UI  (localhost:{port})", lambda i, it: _open_ui()),
+            pystray.MenuItem(f"Open UI", lambda i, it: _open_ui()),
             pystray.MenuItem("Settings / Config", lambda i, it: _open_settings()),
+            pystray.MenuItem("View logs", lambda i, it: _open_logs()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Check for updates", lambda i, it: _check_update()),
             pystray.MenuItem("Restart service", lambda i, it: _restart_service()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit tray icon", _quit),
-        )
+        ]
 
     icon = pystray.Icon(
         name="OBSRemote",
         icon=icon_image,
         title="OBS Remote",
-        menu=make_menu(),
+        menu=pystray.Menu(menu_items),
     )
     icon.run()
 

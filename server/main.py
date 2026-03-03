@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Set
 
@@ -27,10 +28,21 @@ from server import updater
 from server.routes import audio, filters, scenes, sources, stats, streaming, studio
 from version import __version__
 
+_LOG_DIR = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "OBSRemote"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler()],
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            _LOG_DIR / "obs_remote.log",
+            maxBytes=1024 * 1024,  # 1 MB
+            backupCount=3,
+            encoding="utf-8",
+        ),
+    ],
 )
 logger = logging.getLogger(__name__)
 

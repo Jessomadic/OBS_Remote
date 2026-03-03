@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 
-_APPDATA = Path(os.environ.get("APPDATA", Path.home())) / "OBSRemote"
+# Use ProgramData so both the Windows Service (SYSTEM account) and the
+# tray process (user account) read and write the same config file.
+_APPDATA = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "OBSRemote"
 _CONFIG_FILE = _APPDATA / "config.json"
 
 _DEFAULTS = {
