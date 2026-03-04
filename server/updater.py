@@ -134,21 +134,33 @@ def check_now() -> dict | None:
 
 
 def _run_installer(installer_path: Path):
-    """Launch the Inno Setup installer with UAC elevation (fire-and-forget)."""
+    """Launch the Inno Setup installer (fire-and-forget).
+
+    When already admin (SYSTEM service or elevated tray): launch directly via
+    subprocess so it runs without a UAC prompt — avoids the prompt timing out
+    when the caller is running in Session 0 with no desktop.
+
+    When running as a regular user: use ShellExecuteW "runas" to trigger UAC
+    elevation so the installer gets the admin rights it needs.
+    """
+    _args = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
     if sys.platform == "win32":
         import ctypes
-        ctypes.windll.shell32.ShellExecuteW(
-            None,
-            "runas",
-            str(installer_path),
-            "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
-            None,
-            1,  # SW_SHOWNORMAL — let UAC prompt appear
-        )
+        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        logger.info("Launching installer (path=%s, admin=%s)", installer_path, is_admin)
+        if is_admin:
+            # Already elevated (SYSTEM service or admin tray) — launch directly.
+            subprocess.Popen(
+                [str(installer_path)] + _args.split(),
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            # Standard user — request elevation via UAC.
+            ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", str(installer_path), _args, None, 1,
+            )
     else:
-        subprocess.Popen(
-            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
-        )
+        subprocess.Popen([str(installer_path)] + _args.split())
 
 
 def _download_and_run(update_info: dict, dialog=None) -> bool:

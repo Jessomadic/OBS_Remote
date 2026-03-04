@@ -13,8 +13,6 @@ a = Analysis(
     datas=[
         # Include the entire UI directory
         ('ui', 'ui'),
-        # Include version file
-        ('version.py', '.'),
     ],
     hiddenimports=[
         # obsws-python
