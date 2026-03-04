@@ -14,7 +14,7 @@
 <body>
 
   <!-- Connection Modal -->
-  <div id="connection-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="connection-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-box">
       <div class="modal-header">
         <div class="modal-logo">
@@ -28,28 +28,38 @@
             <line x1="23" y1="16" x2="28" y2="16" stroke="white" stroke-width="2" stroke-linecap="round" />
           </svg>
         </div>
-        <h2 id="modal-title">Connect to OBS</h2>
-        <p class="modal-subtitle">Enter your OBS WebSocket connection details</p>
+        <h2 id="modal-title">OBS Remote</h2>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label for="obs-host">Host</label>
-          <input type="text" id="obs-host" placeholder="localhost" autocomplete="off" />
+        <!-- Waiting state (shown by default) -->
+        <div id="modal-waiting" class="modal-waiting">
+          <div class="spinner spinner-lg" aria-hidden="true"></div>
+          <p class="waiting-text">Waiting for OBS...</p>
+          <p id="modal-target" class="waiting-target">localhost:4455</p>
+          <p class="waiting-hint">OBS will connect automatically once WebSocket is enabled.</p>
+          <button id="modal-configure-toggle" class="btn btn-ghost btn-sm">Change settings ▾</button>
         </div>
-        <div class="form-group">
-          <label for="obs-port">Port</label>
-          <input type="number" id="obs-port" placeholder="4455" min="1" max="65535" />
+        <!-- Settings form (hidden by default, revealed by toggle) -->
+        <div id="modal-configure" class="modal-configure hidden">
+          <div class="form-group">
+            <label for="obs-host">Host</label>
+            <input type="text" id="obs-host" placeholder="localhost" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="obs-port">Port</label>
+            <input type="number" id="obs-port" placeholder="4455" min="1" max="65535" />
+          </div>
+          <div class="form-group">
+            <label for="obs-password">Password <span class="label-optional">(optional)</span></label>
+            <input type="password" id="obs-password" placeholder="Leave blank if not set"
+              autocomplete="current-password" />
+          </div>
+          <div id="modal-error" class="modal-error" role="alert" aria-live="polite"></div>
+          <button id="connect-btn" class="btn btn-primary btn-full">
+            <span class="btn-text">Connect</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
         </div>
-        <div class="form-group">
-          <label for="obs-password">Password <span class="label-optional">(optional)</span></label>
-          <input type="password" id="obs-password" placeholder="Leave blank if not set"
-            autocomplete="current-password" />
-        </div>
-        <div id="modal-error" class="modal-error" role="alert" aria-live="polite"></div>
-        <button id="connect-btn" class="btn btn-primary btn-full">
-          <span class="btn-text">Connect</span>
-          <span class="btn-spinner" aria-hidden="true"></span>
-        </button>
       </div>
     </div>
   </div>

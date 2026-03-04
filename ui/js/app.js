@@ -125,6 +125,10 @@
   const connectionModal = document.getElementById('connection-modal');
   const connectBtn = document.getElementById('connect-btn');
   const modalError = document.getElementById('modal-error');
+  const modalConfigure = document.getElementById('modal-configure');
+  const modalConfigureToggle = document.getElementById('modal-configure-toggle');
+  const modalTarget = document.getElementById('modal-target');
+  let _modalPollTimer = null;
 
   function showModalError(msg) {
     modalError.textContent = msg;
@@ -140,9 +144,57 @@
     connectBtn.disabled = loading;
   }
 
+  function showConnectionModal(status) {
+    // Update target display from saved config
+    if (status && status.obs_host) {
+      modalTarget.textContent = `${status.obs_host}:${status.obs_port || 4455}`;
+      $('#obs-host').value = status.obs_host;
+      $('#obs-port').value = status.obs_port || 4455;
+      if (status.obs_has_password) {
+        $('#obs-password').placeholder = '(saved)';
+      }
+    }
+    // Always start in waiting state
+    modalConfigure.classList.add('hidden');
+    modalConfigureToggle.textContent = 'Change settings ▾';
+    connectionModal.classList.remove('hidden');
+    // Poll every 3s to auto-dismiss when OBS connects
+    _startModalPoll();
+  }
+
+  function hideConnectionModal() {
+    connectionModal.classList.add('hidden');
+    _stopModalPoll();
+  }
+
+  function _startModalPoll() {
+    _stopModalPoll();
+    _modalPollTimer = setInterval(async () => {
+      try {
+        const s = await api.getStatus();
+        if (s.obs_connected) {
+          hideConnectionModal();
+          setConnectionUI(true, s.version);
+          await initApp();
+        }
+      } catch (_) {}
+    }, 3000);
+  }
+
+  function _stopModalPoll() {
+    if (_modalPollTimer) { clearInterval(_modalPollTimer); _modalPollTimer = null; }
+  }
+
+  modalConfigureToggle.addEventListener('click', () => {
+    const open = !modalConfigure.classList.contains('hidden');
+    modalConfigure.classList.toggle('hidden', open);
+    modalConfigureToggle.textContent = open ? 'Change settings ▾' : 'Hide settings ▴';
+  });
+
   connectBtn.addEventListener('click', async () => {
     const host = $('#obs-host').value.trim() || 'localhost';
     const port = parseInt($('#obs-port').value, 10) || 4455;
+    // Empty password = keep saved password (server handles this)
     const password = $('#obs-password').value;
 
     clearModalError();
@@ -150,7 +202,7 @@
 
     try {
       await api.connect(host, port, password);
-      connectionModal.classList.add('hidden');
+      hideConnectionModal();
       await initApp();
     } catch (err) {
       showModalError(err.message || 'Connection failed. Check host/port/password.');
@@ -362,8 +414,9 @@
       case 'connected':
         setConnectionUI(data.obs_connected);
         if (data.obs_connected && !state.obsConnected) {
+          hideConnectionModal();
           showToast('OBS connected', 'success');
-          startTabActivity(state.activeTab);
+          initApp();
         } else if (!data.obs_connected && state.obsConnected) {
           showToast('OBS disconnected', 'error');
           stopAllPolling();
@@ -480,17 +533,15 @@
   async function boot() {
     const status = await refreshStatus();
 
-    // Always fill the form fields with latest config just in case they open Settings
-    if (status.obs_host) $('#obs-host').value = status.obs_host;
-    if (status.obs_port) $('#obs-port').value = status.obs_port;
+    // Always fill the settings modal fields
     if (status.obs_host) $('#settings-host').value = status.obs_host;
     if (status.obs_port) $('#settings-port').value = status.obs_port;
+    if (status.obs_has_password) $('#settings-password').placeholder = '(saved)';
 
     if (!status.obs_connected) {
-      // Show connect modal
-      connectionModal.classList.remove('hidden');
+      showConnectionModal(status);
     } else {
-      connectionModal.classList.add('hidden');
+      hideConnectionModal();
       await initApp();
     }
   }

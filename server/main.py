@@ -134,20 +134,20 @@ _reconnect_loop_active = False
 
 
 def _reconnect_loop(loop: asyncio.AbstractEventLoop):
-    """Background thread: try to reconnect to OBS every 15 seconds when disconnected."""
+    """Background thread: try to reconnect to OBS every 10 seconds when disconnected."""
     global _reconnect_loop_active
     _reconnect_loop_active = True
     while _reconnect_loop_active:
-        time.sleep(15)
+        time.sleep(10)
         if obs.is_connected():
             continue
         cfg = config.load()
         try:
             obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
-            _register_obs_events(loop)
             logger.info("Auto-reconnected to OBS")
+            # Use the same "connected" event the WS handshake uses so the UI handles it
             asyncio.run_coroutine_threadsafe(
-                broadcast("obs_connected", {"connected": True}), loop
+                broadcast("connected", {"obs_connected": True, "version": __version__}), loop
             )
         except Exception:
             pass  # Still not reachable — try again next interval
@@ -163,10 +163,12 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_event_loop()
     cfg = config.load()
 
-    # Connect to OBS
+    # Register OBS event handlers once, independent of connection state
+    _register_obs_events(loop)
+
+    # Attempt initial connection from config
     try:
         obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
-        _register_obs_events(loop)
         logger.info("OBS connected")
     except Exception as e:
         logger.warning("OBS not available on startup: %s", e)
@@ -241,6 +243,7 @@ def get_status():
         "obs_connected": obs.is_connected(),
         "obs_host": cfg["obs_host"],
         "obs_port": cfg["obs_port"],
+        "obs_has_password": bool(cfg.get("obs_password")),
         "server_port": cfg["server_port"],
         "update_available": update_info,
     }
@@ -249,11 +252,14 @@ def get_status():
 @mgmt.post("/connect")
 def connect_obs(body: ConnectRequest):
     obs.disconnect()
+    cfg = config.load()
+    # If password field is empty, keep the already-saved password
+    password = body.password if body.password else cfg.get("obs_password", "")
     config.set_value("obs_host", body.host)
     config.set_value("obs_port", body.port)
-    config.set_value("obs_password", body.password)
+    config.set_value("obs_password", password)
     try:
-        obs.connect(body.host, body.port, body.password)
+        obs.connect(body.host, body.port, password)
         return {"ok": True, "connected": True}
     except Exception as e:
         return {"ok": False, "connected": False, "error": str(e)}

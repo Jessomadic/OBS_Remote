@@ -77,6 +77,7 @@ def check_now() -> dict | None:
             return None
 
         asset_id = str(exe_asset["id"])
+        latest_tag = data.get("tag_name", "").lstrip("v") or "unknown"
         last_asset_id = cache.get("last_applied_asset_id")
 
         # If no baseline is cached yet (fresh install), record current asset and
@@ -86,8 +87,11 @@ def check_now() -> dict | None:
             logger.info("Update cache initialised with asset id %s", asset_id)
             return None
 
-        if asset_id != last_asset_id:
-            latest_tag = data.get("tag_name", "").lstrip("v") or "unknown"
+        # Update if asset ID changed (same version, new build) OR version string differs
+        is_new_asset = asset_id != last_asset_id
+        is_new_version = latest_tag not in ("unknown", __version__)
+
+        if is_new_asset or is_new_version:
             _update_available = {
                 "version": latest_tag,
                 "current": __version__,
@@ -97,8 +101,8 @@ def check_now() -> dict | None:
                 "body": data.get("body", ""),
             }
             logger.info(
-                "Update available: asset %s → %s (was %s)",
-                last_asset_id, asset_id, last_asset_id,
+                "Update available: v%s → v%s (asset %s, new_asset=%s, new_version=%s)",
+                __version__, latest_tag, asset_id, is_new_asset, is_new_version,
             )
             return _update_available
 
