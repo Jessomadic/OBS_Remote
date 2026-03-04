@@ -529,6 +529,19 @@
         // Handled inline if filter list is visible; no full reload needed
         break;
 
+      case 'update':
+        if (data.status === 'downloading') {
+          showUpdateBadge('downloading');
+          showToast(`Downloading update v${data.version}…`, 'info', 12000);
+        } else if (data.status === 'installed') {
+          showUpdateBadge('installed');
+          showToast(`v${data.version} installed — restarting shortly`, 'success', 15000);
+        } else if (data.status === 'failed') {
+          showUpdateBadge('failed');
+          showToast(`Update to v${data.version} failed — check logs`, 'error', 8000);
+        }
+        break;
+
       default:
         break;
     }
@@ -542,8 +555,10 @@
       const status = await api.getStatus();
       setConnectionUI(status.obs_connected, status.version);
 
-      if (status.update_available) {
-        showUpdateBadge();
+      if (status.update_downloading) {
+        showUpdateBadge('downloading');
+      } else if (status.update_available) {
+        showUpdateBadge('available');
       }
 
       // Populate settings modal fields with current values
@@ -561,14 +576,31 @@
     }
   }
 
-  function showUpdateBadge() {
+  function showUpdateBadge(state = 'available') {
     const versionWrap = versionBadge.parentElement;
-    if (versionWrap.querySelector('.update-badge')) return;
-    const badge = document.createElement('span');
-    badge.className = 'update-badge';
-    badge.textContent = 'Update available';
-    badge.title = 'A newer version of OBS Remote is available';
-    versionWrap.insertBefore(badge, versionBadge.nextSibling);
+    let badge = versionWrap.querySelector('.update-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'update-badge';
+      versionWrap.insertBefore(badge, versionBadge.nextSibling);
+    }
+    if (state === 'downloading') {
+      badge.textContent = 'Downloading update…';
+      badge.title = 'Downloading a new version of OBS Remote';
+      badge.className = 'update-badge update-badge-downloading';
+    } else if (state === 'installed') {
+      badge.textContent = 'Restarting…';
+      badge.title = 'Update installed — app will restart shortly';
+      badge.className = 'update-badge update-badge-installed';
+    } else if (state === 'failed') {
+      badge.textContent = 'Update failed';
+      badge.title = 'Failed to download update — check logs';
+      badge.className = 'update-badge update-badge-failed';
+    } else {
+      badge.textContent = 'Update available';
+      badge.title = 'A newer version of OBS Remote is available';
+      badge.className = 'update-badge';
+    }
   }
 
   // -------------------------------------------------------------------------

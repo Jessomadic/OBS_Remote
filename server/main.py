@@ -189,8 +189,19 @@ async def lifespan(app: FastAPI):
     t = threading.Thread(target=_reconnect_loop, args=(loop,), daemon=True, name="OBSReconnect")
     t.start()
 
-    # Start auto-updater
+    # Start auto-updater with broadcast callbacks so the UI gets live progress
     if cfg.get("check_updates", True):
+        def _on_update_start(info):
+            asyncio.run_coroutine_threadsafe(
+                broadcast("update", {"status": "downloading", "version": info["version"]}), loop
+            )
+
+        def _on_update_complete(info, ok):
+            asyncio.run_coroutine_threadsafe(
+                broadcast("update", {"status": "installed" if ok else "failed", "version": info["version"]}), loop
+            )
+
+        updater.set_callbacks(on_start=_on_update_start, on_complete=_on_update_complete)
         updater.start_background_checker()
 
     yield
@@ -251,6 +262,7 @@ class ConnectRequest(BaseModel):
 def get_status():
     cfg = config.load()
     update_info = updater.get_update_available()
+    update_status = updater.get_update_status()
     return {
         "version": __version__,
         "obs_connected": obs.is_connected(),
@@ -258,7 +270,9 @@ def get_status():
         "obs_port": cfg["obs_port"],
         "obs_has_password": bool(cfg.get("obs_password")),
         "server_port": cfg["server_port"],
-        "update_available": update_info,
+        "update_available": bool(update_info),
+        "update_version": update_info.get("version") if update_info else None,
+        "update_downloading": update_status["downloading"],
     }
 
 

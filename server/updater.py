@@ -26,6 +26,12 @@ _GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 _CHECK_INTERVAL = 60 * 60  # 1 hour
 _update_available: dict | None = None
 _update_applied = False
+_update_downloading = False
+
+# Callbacks fired when a download starts or completes.
+# Set via set_callbacks() — used by main.py to broadcast WS events.
+_on_download_start = None
+_on_download_complete = None
 
 # Local cache stores the asset ID of the last applied (or baseline) installer.
 # Comparing asset IDs catches new builds even when the version number hasn't changed.
@@ -47,9 +53,25 @@ def _save_cache(data: dict):
         logger.warning("Could not write update cache: %s", e)
 
 
+def set_callbacks(on_start=None, on_complete=None):
+    """Register callbacks fired when a download starts/completes.
+
+    on_start(info: dict)            — called when download begins
+    on_complete(info: dict, ok: bool) — called when download finishes (ok=True) or fails
+    """
+    global _on_download_start, _on_download_complete
+    _on_download_start = on_start
+    _on_download_complete = on_complete
+
+
 def get_update_available() -> dict | None:
     """Returns info about a pending update, or None if up-to-date."""
     return _update_available
+
+
+def get_update_status() -> dict:
+    """Returns current download/apply state."""
+    return {"downloading": _update_downloading, "applied": _update_applied}
 
 
 def check_now() -> dict | None:
@@ -111,46 +133,74 @@ def check_now() -> dict | None:
     return None
 
 
+def _run_installer(installer_path: Path):
+    """Launch the Inno Setup installer silently (UAC-aware on Windows)."""
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.ShellExecuteW(
+            None,
+            "open",
+            str(installer_path),
+            "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS",
+            None,
+            0,  # SW_HIDE
+        )
+    else:
+        subprocess.Popen(
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES",
+             "/NORESTART", "/CLOSEAPPLICATIONS"],
+        )
+
+
+def _download_and_run(update_info: dict) -> bool:
+    """Download the installer and run it. Blocking. Returns True on success.
+
+    Fires _on_download_start / _on_download_complete callbacks so callers
+    (e.g. main.py) can broadcast progress to connected browser clients.
+    """
+    global _update_applied, _update_downloading
+    _update_downloading = True
+    if _on_download_start:
+        try:
+            _on_download_start(update_info)
+        except Exception:
+            pass
+
+    logger.info("Downloading update from %s", update_info["url"])
+    try:
+        resp = requests.get(update_info["url"], stream=True, timeout=120)
+        resp.raise_for_status()
+        tmp_dir = tempfile.mkdtemp(prefix="obs_remote_update_")
+        installer_path = Path(tmp_dir) / f"OBSRemote_setup_{update_info['version']}.exe"
+        with open(installer_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        logger.info("Installer downloaded to %s", installer_path)
+        _save_cache({"last_applied_asset_id": update_info["asset_id"]})
+        _update_applied = True
+        _update_downloading = False
+        if _on_download_complete:
+            try:
+                _on_download_complete(update_info, True)
+            except Exception:
+                pass
+        _run_installer(installer_path)
+        return True
+    except Exception as e:
+        logger.error("Update failed: %s", e)
+        _update_applied = False
+        _update_downloading = False
+        if _on_download_complete:
+            try:
+                _on_download_complete(update_info, False)
+            except Exception:
+                pass
+        return False
+
+
 def download_and_apply(update_info: dict):
     """Download the installer and run it silently in a background thread."""
-    def _do_update():
-        global _update_applied
-        logger.info("Downloading update from %s", update_info["url"])
-        try:
-            resp = requests.get(update_info["url"], stream=True, timeout=120)
-            resp.raise_for_status()
-            tmp_dir = tempfile.mkdtemp(prefix="obs_remote_update_")
-            installer_path = Path(tmp_dir) / f"OBSRemote_setup_{update_info['version']}.exe"
-            with open(installer_path, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            logger.info("Installer downloaded to %s", installer_path)
-            _save_cache({"last_applied_asset_id": update_info["asset_id"]})
-            _update_applied = True
-            # Run Inno Setup installer silently.
-            # Use ShellExecuteW so Windows can prompt for UAC elevation
-            # (Inno Setup embeds requireAdministrator in its manifest).
-            # subprocess.Popen with CREATE_NO_WINDOW cannot trigger UAC.
-            if sys.platform == "win32":
-                import ctypes
-                ctypes.windll.shell32.ShellExecuteW(
-                    None,
-                    "open",
-                    str(installer_path),
-                    "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS",
-                    None,
-                    0,  # SW_HIDE
-                )
-            else:
-                subprocess.Popen(
-                    [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES",
-                     "/NORESTART", "/CLOSEAPPLICATIONS"],
-                )
-        except Exception as e:
-            logger.error("Update failed: %s", e)
-            _update_applied = False
-
-    t = threading.Thread(target=_do_update, daemon=True)
+    t = threading.Thread(target=_download_and_run, args=(update_info,), daemon=True)
     t.start()
 
 

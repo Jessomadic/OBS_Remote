@@ -1445,6 +1445,21 @@ input[type="range"]::-moz-range-thumb {
   background: var(--warning-dim);
   color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.25);
-  cursor: pointer;
+  cursor: default;
   animation: fadeIn 200ms ease;
+}
+.update-badge-downloading {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+.update-badge-installed {
+  background: var(--success-dim);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.update-badge-failed {
+  background: var(--error-dim);
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.3);
 }

@@ -153,13 +153,22 @@ def _check_update():
         from server import updater
         info = updater.check_now()
         if info:
-            updater.download_and_apply(info)
-            ctypes.windll.user32.MessageBoxW(
-                0,
-                f"Update to v{info['version']} is downloading.\nThe app will restart automatically when ready.",
-                "OBS Remote — Update Found",
-                0x40,  # MB_ICONINFORMATION
-            )
+            # Download synchronously so we can show the result after completion
+            ok = updater._download_and_run(info)
+            if ok:
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"v{info['version']} downloaded and installing.\nThe app will restart automatically.",
+                    "OBS Remote — Installing Update",
+                    0x40,  # MB_ICONINFORMATION
+                )
+            else:
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"Failed to download update to v{info['version']}.\nCheck the log file for details.",
+                    "OBS Remote — Update Failed",
+                    0x10,  # MB_ICONERROR
+                )
         else:
             ctypes.windll.user32.MessageBoxW(
                 0,
@@ -227,10 +236,21 @@ def run_tray():
             server_line = f"Server not running  (port {port})"
             obs_line = "OBS: —"
 
+        from server import updater as _updater
+        update_status = _updater.get_update_status()
+
         items = [
             pystray.MenuItem(f"OBS Remote v{_version()}", None, enabled=False),
             pystray.MenuItem(server_line, None, enabled=False),
             pystray.MenuItem(obs_line, None, enabled=False),
+        ]
+
+        if update_status["downloading"]:
+            items.append(pystray.MenuItem("Downloading update…", None, enabled=False))
+        elif update_status["applied"]:
+            items.append(pystray.MenuItem("Update installed — restarting soon", None, enabled=False))
+
+        items += [
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open UI", lambda i, it: _open_ui()),
             pystray.MenuItem("Settings / Config", lambda i, it: _open_settings()),
