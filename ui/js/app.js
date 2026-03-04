@@ -412,11 +412,11 @@
 
     switch (event) {
       case 'connected':
-        setConnectionUI(data.obs_connected);
+        setConnectionUI(data.obs_connected, data.version);
         if (data.obs_connected && !state.obsConnected) {
           hideConnectionModal();
           showToast('OBS connected', 'success');
-          initApp();
+          await initApp();
         } else if (!data.obs_connected && state.obsConnected) {
           showToast('OBS disconnected', 'error');
           stopAllPolling();
@@ -546,15 +546,21 @@
     }
   }
 
+  let _initAppRunning = false;
+
   async function initApp() {
-    // Re-check status in case it changed
-    await refreshStatus();
-
-    // Start WebSocket
-    connectWebSocket();
-
-    // Load the default tab
-    await startTabActivity(state.activeTab);
+    // Guard against concurrent calls (modal poll + WS event + button all call this)
+    if (_initAppRunning) return;
+    _initAppRunning = true;
+    try {
+      // Do NOT call refreshStatus() here — it sets obsConnected=false on any error,
+      // which causes every tab's guard to block data loading. Status was already
+      // fetched by the caller (boot/modal poll/WS event) immediately before calling us.
+      connectWebSocket();
+      await startTabActivity(state.activeTab);
+    } finally {
+      _initAppRunning = false;
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -134,23 +134,35 @@ _reconnect_loop_active = False
 
 
 def _reconnect_loop(loop: asyncio.AbstractEventLoop):
-    """Background thread: try to reconnect to OBS every 10 seconds when disconnected."""
+    """Background thread: detect disconnects and reconnect every 10 seconds."""
     global _reconnect_loop_active
     _reconnect_loop_active = True
+    _was_connected = obs.is_connected()
+
     while _reconnect_loop_active:
         time.sleep(10)
-        if obs.is_connected():
-            continue
-        cfg = config.load()
-        try:
-            obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
-            logger.info("Auto-reconnected to OBS")
-            # Use the same "connected" event the WS handshake uses so the UI handles it
+        now_connected = obs.is_connected()
+
+        # Detect transition: connected → disconnected
+        if _was_connected and not now_connected:
+            logger.warning("OBS connection lost — will retry")
             asyncio.run_coroutine_threadsafe(
-                broadcast("connected", {"obs_connected": True, "version": __version__}), loop
+                broadcast("connected", {"obs_connected": False, "version": __version__}), loop
             )
-        except Exception:
-            pass  # Still not reachable — try again next interval
+
+        if not now_connected:
+            cfg = config.load()
+            try:
+                obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
+                logger.info("Auto-reconnected to OBS")
+                now_connected = True
+                asyncio.run_coroutine_threadsafe(
+                    broadcast("connected", {"obs_connected": True, "version": __version__}), loop
+                )
+            except Exception:
+                pass  # Still not reachable — try again next interval
+
+        _was_connected = now_connected
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +262,7 @@ def get_status():
 
 
 @mgmt.post("/connect")
-def connect_obs(body: ConnectRequest):
+async def connect_obs(body: ConnectRequest):
     obs.disconnect()
     cfg = config.load()
     # If password field is empty, keep the already-saved password
@@ -260,14 +272,17 @@ def connect_obs(body: ConnectRequest):
     config.set_value("obs_password", password)
     try:
         obs.connect(body.host, body.port, password)
+        await broadcast("connected", {"obs_connected": True, "version": __version__})
         return {"ok": True, "connected": True}
     except Exception as e:
+        await broadcast("connected", {"obs_connected": False, "version": __version__})
         return {"ok": False, "connected": False, "error": str(e)}
 
 
 @mgmt.post("/disconnect")
-def disconnect_obs():
+async def disconnect_obs():
     obs.disconnect()
+    await broadcast("connected", {"obs_connected": False, "version": __version__})
     return {"ok": True}
 
 

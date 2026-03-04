@@ -119,9 +119,12 @@ def req(method: str, **kwargs):
     try:
         return fn(**kwargs) if kwargs else fn()
     except Exception as e:
-        # Mark as disconnected if the socket is gone
+        # Mark as disconnected on any socket/transport-level error
         err = str(e).lower()
-        if any(x in err for x in ("connection", "socket", "broken pipe", "eof", "closed")):
+        if any(x in err for x in (
+            "connection", "socket", "broken pipe", "eof", "closed",
+            "timeout", "timed out", "refused", "reset", "disconnected",
+        )) or isinstance(e, (ConnectionError, TimeoutError, OSError)):
             _connected = False
             logger.warning("OBS connection lost: %s", e)
         raise
