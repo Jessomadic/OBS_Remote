@@ -140,7 +140,6 @@ def _reconnect_loop(loop: asyncio.AbstractEventLoop):
     _was_connected = obs.is_connected()
 
     while _reconnect_loop_active:
-        time.sleep(10)
         now_connected = obs.is_connected()
 
         # Detect transition: connected → disconnected
@@ -163,6 +162,7 @@ def _reconnect_loop(loop: asyncio.AbstractEventLoop):
                 pass  # Still not reachable — try again next interval
 
         _was_connected = now_connected
+        time.sleep(10)
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +278,6 @@ def get_status():
 
 @mgmt.post("/connect")
 async def connect_obs(body: ConnectRequest):
-    obs.disconnect()
     cfg = config.load()
     # Determine which password to persist:
     #  clear_password=True  → user explicitly wants no password (wipe it)
@@ -290,10 +289,13 @@ async def connect_obs(body: ConnectRequest):
         password = body.password.strip()
     else:
         password = cfg.get("obs_password", "")
-    config.set_value("obs_host", body.host)
-    config.set_value("obs_port", body.port)
-    config.set_value("obs_password", password)
+    # Save all three fields atomically in one load/modify/save cycle
+    cfg["obs_host"] = body.host
+    cfg["obs_port"] = body.port
+    cfg["obs_password"] = password
+    config.save(cfg)
     try:
+        # obs.connect() disconnects any existing session first (thread-safe)
         obs.connect(body.host, body.port, password)
         await broadcast("connected", {"obs_connected": True, "version": __version__})
         return {"ok": True, "connected": True}

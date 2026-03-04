@@ -145,13 +145,20 @@
   }
 
   function showConnectionModal(status) {
-    // Update target display from saved config
+    // Update target display from saved config; fall back to existing form values on null
     if (status && status.obs_host) {
       modalTarget.textContent = `${status.obs_host}:${status.obs_port || 4455}`;
       $('#obs-host').value = status.obs_host;
       $('#obs-port').value = status.obs_port || 4455;
+    } else {
+      // Called with null (e.g. on disconnect) — keep existing form values, update target label
+      const host = $('#obs-host').value || 'localhost';
+      const port = $('#obs-port').value || 4455;
+      modalTarget.textContent = `${host}:${port}`;
     }
-    _updatePasswordUI('obs-password', 'obs-clear-password-btn', status && status.obs_has_password);
+    // Preserve password state when status is null (user still has saved password)
+    const hasPassword = status ? status.obs_has_password : ($('#obs-clear-password-btn').classList.contains('hidden') ? false : true);
+    _updatePasswordUI('obs-password', 'obs-clear-password-btn', hasPassword);
     // Always start in waiting state
     modalConfigure.classList.add('hidden');
     modalConfigureToggle.textContent = 'Change settings ▾';
@@ -210,7 +217,10 @@
     setConnectBtnLoading(true);
 
     try {
-      await api.connect(host, port, password);
+      const result = await api.connect(host, port, password);
+      // Set connected state immediately from HTTP response — don't wait for WS
+      // broadcast which races and may arrive after initApp() starts loading data.
+      if (result && result.connected) setConnectionUI(true);
       hideConnectionModal();
       await initApp();
     } catch (err) {
@@ -298,10 +308,12 @@
     settingsConnectBtn.textContent = 'Connecting...';
 
     try {
-      await api.connect(host, port, password);
+      const result = await api.connect(host, port, password);
+      if (result && result.connected) setConnectionUI(true);
       closeSettings();
       showToast('Reconnected to OBS', 'success');
       await refreshStatus();
+      await initApp(); // Reload all tab data for the (possibly different) OBS instance
     } catch (err) {
       showSettingsError(err.message || 'Connection failed.');
     } finally {
@@ -520,6 +532,20 @@
         break;
       }
 
+      case 'preview_changed':
+        state.studioPreviewScene = data.scene;
+        if (state.activeTab === 'studio') {
+          const previewEl = document.getElementById('studio-preview-scene');
+          if (previewEl) previewEl.textContent = data.scene || '—';
+        }
+        break;
+
+      case 'collection_changed':
+        state.currentCollection = data.collection;
+        // Scene list changes completely on collection switch — reload
+        if (state.activeTab === 'scenes') loadScenes();
+        break;
+
       case 'studio_mode':
         state.studioEnabled = data.enabled;
         if (state.activeTab === 'studio') renderStudioMode(data.enabled);
@@ -576,7 +602,7 @@
     }
   }
 
-  function showUpdateBadge(state = 'available') {
+  function showUpdateBadge(badgeState = 'available') {
     const versionWrap = versionBadge.parentElement;
     let badge = versionWrap.querySelector('.update-badge');
     if (!badge) {
@@ -584,15 +610,15 @@
       badge.className = 'update-badge';
       versionWrap.insertBefore(badge, versionBadge.nextSibling);
     }
-    if (state === 'downloading') {
+    if (badgeState === 'downloading') {
       badge.textContent = 'Downloading update…';
       badge.title = 'Downloading a new version of OBS Remote';
       badge.className = 'update-badge update-badge-downloading';
-    } else if (state === 'installed') {
+    } else if (badgeState === 'installed') {
       badge.textContent = 'Restarting…';
       badge.title = 'Update installed — app will restart shortly';
       badge.className = 'update-badge update-badge-installed';
-    } else if (state === 'failed') {
+    } else if (badgeState === 'failed') {
       badge.textContent = 'Update failed';
       badge.title = 'Failed to download update — check logs';
       badge.className = 'update-badge update-badge-failed';
