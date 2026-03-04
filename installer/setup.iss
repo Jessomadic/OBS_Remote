@@ -87,8 +87,8 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""OBS 
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule (program)"
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""OBS Remote Port"" dir=in action=allow protocol=TCP localport=42069 enable=yes profile=any"; Flags: runhidden waituntilterminated; Description: "Adding firewall rule (port)"
 
-; Launch tray icon now (for new installs with startup task selected)
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch OBS Remote tray icon"; Flags: nowait postinstall skipifsilent; Tasks: startupicon
+; Launch tray icon after install/update (including silent auto-updates)
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch OBS Remote tray icon"; Flags: nowait postinstall; Tasks: startupicon
 
 [UninstallRun]
 ; Kill tray icon first so the exe is not locked

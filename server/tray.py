@@ -146,35 +146,19 @@ def _restart_service():
 
 
 def _check_update():
-    # Run in a separate thread so the pystray menu thread isn't blocked,
-    # which would prevent MessageBoxW from processing button clicks.
+    """Check for updates and, if found, show the progress dialog and apply."""
     def _do():
         import ctypes
         from server import updater
         info = updater.check_now()
         if info:
-            # Download synchronously so we can show the result after completion
-            ok = updater._download_and_run(info)
-            if ok:
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f"v{info['version']} downloaded and installing.\nThe app will restart automatically.",
-                    "OBS Remote — Installing Update",
-                    0x40,  # MB_ICONINFORMATION
-                )
-            else:
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f"Failed to download update to v{info['version']}.\nCheck the log file for details.",
-                    "OBS Remote — Update Failed",
-                    0x10,  # MB_ICONERROR
-                )
+            updater.download_and_apply(info, show_ui=True)
         else:
             ctypes.windll.user32.MessageBoxW(
                 0,
                 "You're already on the latest version.",
                 "OBS Remote — Up to Date",
-                0x40,
+                0x40,  # MB_ICONINFORMATION
             )
     threading.Thread(target=_do, daemon=True).start()
 

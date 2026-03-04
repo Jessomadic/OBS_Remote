@@ -134,26 +134,29 @@ def check_now() -> dict | None:
 
 
 def _run_installer(installer_path: Path):
-    """Launch the Inno Setup installer silently (UAC-aware on Windows)."""
+    """Launch the Inno Setup installer with UAC elevation (fire-and-forget)."""
     if sys.platform == "win32":
         import ctypes
         ctypes.windll.shell32.ShellExecuteW(
             None,
-            "open",
+            "runas",
             str(installer_path),
-            "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS",
+            "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
             None,
-            0,  # SW_HIDE
+            1,  # SW_SHOWNORMAL — let UAC prompt appear
         )
     else:
         subprocess.Popen(
-            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES",
-             "/NORESTART", "/CLOSEAPPLICATIONS"],
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
         )
 
 
-def _download_and_run(update_info: dict) -> bool:
-    """Download the installer and run it. Blocking. Returns True on success.
+def _download_and_run(update_info: dict, dialog=None) -> bool:
+    """Download the installer and run it.  Blocking.  Returns True on success.
+
+    If *dialog* is an UpdateDialog instance, drives its progress display.
+    After the installer is launched the current process exits so the
+    installer can replace the running exe cleanly.
 
     Fires _on_download_start / _on_download_complete callbacks so callers
     (e.g. main.py) can broadcast progress to connected browser clients.
@@ -166,30 +169,87 @@ def _download_and_run(update_info: dict) -> bool:
         except Exception:
             pass
 
-    logger.info("Downloading update from %s", update_info["url"])
+    version = update_info["version"]
+    logger.info("Downloading update v%s from %s", version, update_info["url"])
+
+    def _log(msg):
+        logger.info(msg)
+        if dialog:
+            dialog.log(msg)
+
     try:
         resp = requests.get(update_info["url"], stream=True, timeout=120)
         resp.raise_for_status()
+
+        content_length = int(resp.headers.get("Content-Length", 0))
+        if dialog and content_length:
+            dialog.set_progress(0)
+
         tmp_dir = tempfile.mkdtemp(prefix="obs_remote_update_")
-        installer_path = Path(tmp_dir) / f"OBSRemote_setup_{update_info['version']}.exe"
+        installer_path = Path(tmp_dir) / f"OBSRemote_setup_{version}.exe"
+
+        downloaded = 0
         with open(installer_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
+            for chunk in resp.iter_content(chunk_size=65536):
+                if dialog and dialog.cancelled:
+                    logger.info("Update cancelled by user")
+                    _update_downloading = False
+                    return False
                 f.write(chunk)
-        logger.info("Installer downloaded to %s", installer_path)
+                downloaded += len(chunk)
+                if dialog and content_length:
+                    pct = min(100.0, downloaded * 100 / content_length)
+                    dialog.set_progress(pct)
+                    mb_done = downloaded / (1024 * 1024)
+                    mb_total = content_length / (1024 * 1024)
+                    dialog.set_status(
+                        f"Downloading OBS Remote v{version}..."
+                        f"  {mb_done:.1f} / {mb_total:.1f} MB"
+                    )
+
+        size_mb = downloaded / (1024 * 1024)
+        _log(f"Download complete — {size_mb:.1f} MB saved to {installer_path}")
         _save_cache({"last_applied_asset_id": update_info["asset_id"]})
         _update_applied = True
         _update_downloading = False
+
         if _on_download_complete:
             try:
                 _on_download_complete(update_info, True)
             except Exception:
                 pass
+
+        if dialog:
+            dialog.set_indeterminate()
+            dialog.set_status(f"Installing OBS Remote v{version}...")
+            dialog.disable_cancel()
+            _log("Stopping OBS Remote service and tray...")
+            _log("Running installer — please approve the UAC prompt...")
+
         _run_installer(installer_path)
-        return True
+
+        if dialog:
+            _log("Installer launched.  OBS Remote will restart automatically.")
+            dialog.set_status("OBS Remote is restarting...")
+
+        # Give the dialog a moment to display the final message, then exit so
+        # the installer can replace the running exe without file-lock errors.
+        # (The installer's CurStepChanged also does taskkill, so this is
+        # belt-and-suspenders — whichever happens first is fine.)
+        import time as _time
+        _time.sleep(3)
+        os._exit(0)
+
+        return True  # unreachable after _exit, but keeps the return type clear
+
     except Exception as e:
         logger.error("Update failed: %s", e)
         _update_applied = False
         _update_downloading = False
+        if dialog:
+            dialog.set_status("Update failed — see log for details.")
+            dialog.log(f"Error: {e}")
+            dialog.disable_cancel()
         if _on_download_complete:
             try:
                 _on_download_complete(update_info, False)
@@ -198,9 +258,33 @@ def _download_and_run(update_info: dict) -> bool:
         return False
 
 
-def download_and_apply(update_info: dict):
-    """Download the installer and run it silently in a background thread."""
-    t = threading.Thread(target=_download_and_run, args=(update_info,), daemon=True)
+def download_and_apply(update_info: dict, show_ui: bool = True):
+    """Download the installer and run it in a background thread.
+
+    When *show_ui* is True (the default), an UpdateDialog progress window
+    is shown for the duration of the download and install.
+    """
+    if show_ui:
+        try:
+            from server.update_ui import UpdateDialog
+            dlg = UpdateDialog(update_info["version"])
+            # Run the tkinter window in its own daemon thread
+            ui_thread = threading.Thread(target=dlg.run, daemon=True, name="UpdateUI")
+            ui_thread.start()
+            dlg._ready.wait(timeout=5)
+            t = threading.Thread(
+                target=_download_and_run,
+                args=(update_info,),
+                kwargs={"dialog": dlg},
+                daemon=True,
+                name="UpdateDownload",
+            )
+            t.start()
+            return
+        except Exception as e:
+            logger.warning("Could not show update UI (%s) — falling back to silent", e)
+
+    t = threading.Thread(target=_download_and_run, args=(update_info,), daemon=True, name="UpdateDownload")
     t.start()
 
 
