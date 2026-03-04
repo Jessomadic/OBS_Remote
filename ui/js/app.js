@@ -368,6 +368,7 @@
   }
 
   function startAudioPolling() {
+    stopTabPolling('audio');
     state.pollIntervals.audio = setInterval(async () => {
       if (state.activeTab === 'audio' && state.obsConnected) {
         await loadAudio(true);
@@ -376,6 +377,7 @@
   }
 
   function startStreamPolling() {
+    stopTabPolling('stream');
     state.pollIntervals.stream = setInterval(async () => {
       if (state.activeTab === 'stream' && state.obsConnected) {
         await loadStreamStatus();
@@ -384,6 +386,7 @@
   }
 
   function startStatsPolling() {
+    stopTabPolling('stats');
     state.pollIntervals.stats = setInterval(async () => {
       if (state.activeTab === 'stats' && state.obsConnected) {
         await loadStats();
@@ -443,21 +446,24 @@
     }, state.wsReconnectDelay);
   }
 
-  function handleWsEvent({ event, data }) {
+  async function handleWsEvent({ event, data }) {
     if (!event || !data) return;
 
     switch (event) {
-      case 'connected':
+      case 'connected': {
+        const wasConnected = state.obsConnected;
         setConnectionUI(data.obs_connected, data.version);
-        if (data.obs_connected && !state.obsConnected) {
+        if (data.obs_connected && !wasConnected) {
           hideConnectionModal();
           showToast('OBS connected', 'success');
           await initApp();
-        } else if (!data.obs_connected && state.obsConnected) {
+        } else if (!data.obs_connected && wasConnected) {
           showToast('OBS disconnected', 'error');
           stopAllPolling();
+          showConnectionModal(null);
         }
         break;
+      }
 
       case 'scene_changed':
         state.currentScene = data.scene;
@@ -588,9 +594,9 @@
     if (_initAppRunning) return;
     _initAppRunning = true;
     try {
-      // Do NOT call refreshStatus() here — it sets obsConnected=false on any error,
-      // which causes every tab's guard to block data loading. Status was already
-      // fetched by the caller (boot/modal poll/WS event) immediately before calling us.
+      // Clear any stale polling intervals from previous sessions before starting fresh.
+      // Without this, every initApp() call leaks a new setInterval that piles up.
+      stopAllPolling();
       connectWebSocket();
       await startTabActivity(state.activeTab);
     } finally {
