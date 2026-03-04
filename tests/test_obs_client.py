@@ -153,8 +153,8 @@ def test_req_passes_kwargs_to_client_method(monkeypatch):
     monkeypatch.setattr("server.obs_client.obs.EventClient", lambda **kw: MagicMock())
     obs_mod.connect("localhost", 4455, "")
 
-    obs_mod.req("SetCurrentProgramScene", scene_name="Gaming")
-    mock_req.set_current_program_scene.assert_called_once_with(scene_name="Gaming")
+    obs_mod.req("SetCurrentProgramScene", name="Gaming")
+    mock_req.set_current_program_scene.assert_called_once_with(name="Gaming")
 
 
 def test_req_raises_attribute_error_for_unknown_method(monkeypatch):

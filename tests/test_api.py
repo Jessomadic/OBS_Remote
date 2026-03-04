@@ -192,7 +192,7 @@ def test_set_scene_calls_obs(client):
     with patch("server.obs_client.req") as mock_req:
         resp = client.post("/api/scenes/current", json={"scene_name": "Gaming"})
     assert resp.status_code == 200
-    mock_req.assert_called_once_with("SetCurrentProgramScene", scene_name="Gaming")
+    mock_req.assert_called_once_with("SetCurrentProgramScene", name="Gaming")
 
 
 def test_set_scene_503_when_obs_fails(client):

@@ -28,18 +28,20 @@ def get_inputs():
     """Return all audio inputs with volume and mute state."""
     try:
         inputs_resp = obs.req("GetInputList")
+        audio_kinds = {
+            "wasapi_input_capture", "wasapi_output_capture",
+            "dshow_input", "coreaudio_input_capture", "coreaudio_output_capture",
+            "pulse_input_capture", "pulse_output_capture",
+            "alsa_input_capture", "browser_source", "ffmpeg_source",
+            "vlc_source", "mediasource",
+        }
         result = []
         for inp in inputs_resp.inputs:
             name = inp["inputName"]
             kind = inp.get("inputKind", "")
-            # Only include audio-capable inputs
-            audio_kinds = {
-                "wasapi_input_capture", "wasapi_output_capture",
-                "dshow_input", "coreaudio_input_capture", "coreaudio_output_capture",
-                "pulse_input_capture", "pulse_output_capture",
-                "alsa_input_capture", "browser_source", "ffmpeg_source",
-                "vlc_source", "mediasource",
-            }
+            # Skip known non-audio sources to avoid unnecessary OBS requests
+            if kind and kind not in audio_kinds:
+                continue
             try:
                 vol_resp = obs.req("GetInputVolume", name=name)
                 mute_resp = obs.req("GetInputMute", name=name)
