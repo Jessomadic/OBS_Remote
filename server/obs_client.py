@@ -17,6 +17,7 @@ _req_client: Optional[obs.ReqClient] = None
 _event_client: Optional[obs.EventClient] = None
 _event_handlers: dict[str, list] = {}
 _connected = False
+_last_connect_error: str = ""  # Last connection failure reason (empty = no error)
 
 
 def get_req() -> Optional[obs.ReqClient]:
@@ -27,27 +28,35 @@ def is_connected() -> bool:
     return _connected
 
 
+def get_last_error() -> str:
+    """Return the last connection failure reason, or empty string if connected/no error."""
+    return _last_connect_error
+
+
 def connect(host: str, port: int, password: str):
     """Establish connection to OBS WebSocket.
 
     Disconnects any existing connection first, then connects fresh.
     Thread-safe: serialises against concurrent reconnect-loop calls.
     """
-    global _req_client, _event_client, _connected
+    global _req_client, _event_client, _connected, _last_connect_error
     pwd = password.strip() if password else None
     with _lock:
         # Tear down any previous connection cleanly before reconnecting
         _disconnect_unlocked()
         try:
-            _req_client = obs.ReqClient(host=host, port=port, password=pwd, timeout=3)
+            # timeout=10: generous enough for LAN connections to remote machines
+            _req_client = obs.ReqClient(host=host, port=port, password=pwd, timeout=10)
             # Verify the connection is genuinely active with a real request
             _req_client.get_version()
             _event_client = obs.EventClient(host=host, port=port, password=pwd)
             _register_events()
             _connected = True
+            _last_connect_error = ""
             logger.info("Connected to OBS at %s:%d", host, port)
         except Exception as e:
             _connected = False
+            _last_connect_error = str(e)
             _req_client = None
             _event_client = None
             logger.error("Failed to connect to OBS: %s", e)

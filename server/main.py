@@ -156,10 +156,13 @@ def _reconnect_loop(loop: asyncio.AbstractEventLoop):
                 logger.info("Auto-reconnected to OBS")
                 now_connected = True
                 asyncio.run_coroutine_threadsafe(
-                    broadcast("connected", {"obs_connected": True, "version": __version__}), loop
+                    broadcast("connected", {"obs_connected": True, "version": __version__, "error": ""}), loop
                 )
-            except Exception:
-                pass  # Still not reachable — try again next interval
+            except Exception as e:
+                # Broadcast the error reason so the UI can show why it's failing
+                asyncio.run_coroutine_threadsafe(
+                    broadcast("connected", {"obs_connected": False, "version": __version__, "error": str(e)}), loop
+                )
 
         _was_connected = now_connected
         time.sleep(10)
@@ -178,9 +181,9 @@ async def lifespan(app: FastAPI):
     # Register OBS event handlers once, independent of connection state
     _register_obs_events(loop)
 
-    # Attempt initial connection from config
+    # Attempt initial connection from config (in thread pool to avoid blocking startup)
     try:
-        obs.connect(cfg["obs_host"], cfg["obs_port"], cfg.get("obs_password", ""))
+        await asyncio.to_thread(obs.connect, cfg["obs_host"], cfg["obs_port"], cfg.get("obs_password", ""))
         logger.info("OBS connected")
     except Exception as e:
         logger.warning("OBS not available on startup: %s", e)
@@ -273,6 +276,7 @@ def get_status():
         "update_available": bool(update_info),
         "update_version": update_info.get("version") if update_info else None,
         "update_downloading": update_status["downloading"],
+        "obs_error": obs.get_last_error(),
     }
 
 
@@ -295,12 +299,12 @@ async def connect_obs(body: ConnectRequest):
     cfg["obs_password"] = password
     config.save(cfg)
     try:
-        # obs.connect() disconnects any existing session first (thread-safe)
-        obs.connect(body.host, body.port, password)
-        await broadcast("connected", {"obs_connected": True, "version": __version__})
+        # Run blocking obs.connect() in a thread pool so we don't freeze the event loop
+        await asyncio.to_thread(obs.connect, body.host, body.port, password)
+        await broadcast("connected", {"obs_connected": True, "version": __version__, "error": ""})
         return {"ok": True, "connected": True}
     except Exception as e:
-        await broadcast("connected", {"obs_connected": False, "version": __version__})
+        await broadcast("connected", {"obs_connected": False, "version": __version__, "error": str(e)})
         return {"ok": False, "connected": False, "error": str(e)}
 
 

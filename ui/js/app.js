@@ -183,15 +183,31 @@
     _stopModalPoll();
   }
 
+  const _modalConnectErrorEl = document.getElementById('modal-connect-error');
+
+  function setModalConnectError(msg) {
+    if (!_modalConnectErrorEl) return;
+    if (msg) {
+      _modalConnectErrorEl.textContent = `Connection failed: ${msg}`;
+      _modalConnectErrorEl.classList.remove('hidden');
+    } else {
+      _modalConnectErrorEl.textContent = '';
+      _modalConnectErrorEl.classList.add('hidden');
+    }
+  }
+
   function _startModalPoll() {
     _stopModalPoll();
     _modalPollTimer = setInterval(async () => {
       try {
         const s = await api.getStatus();
         if (s.obs_connected) {
+          setModalConnectError('');
           hideConnectionModal();
           setConnectionUI(true, s.version);
           await initApp();
+        } else if (s.obs_error) {
+          setModalConnectError(s.obs_error);
         }
       } catch (_) {}
     }, 3000);
@@ -466,6 +482,7 @@
         const wasConnected = state.obsConnected;
         setConnectionUI(data.obs_connected, data.version);
         if (data.obs_connected && !wasConnected) {
+          setModalConnectError('');
           hideConnectionModal();
           showToast('OBS connected', 'success');
           await initApp();
@@ -473,6 +490,9 @@
           showToast('OBS disconnected', 'error');
           stopAllPolling();
           showConnectionModal(null);
+        } else if (!data.obs_connected && data.error) {
+          // Auto-reconnect is failing — show why in the modal
+          setModalConnectError(data.error);
         }
         break;
       }
