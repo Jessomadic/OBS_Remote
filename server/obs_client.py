@@ -31,6 +31,8 @@ def connect(host: str, port: int, password: str):
     global _req_client, _event_client, _connected
     try:
         _req_client = obs.ReqClient(host=host, port=port, password=password, timeout=3)
+        # Verify the connection is genuinely active with a real request
+        _req_client.get_version()
         _event_client = obs.EventClient(host=host, port=port, password=password)
         _register_events()
         _connected = True
@@ -107,15 +109,22 @@ def req(method: str, **kwargs):
     Call any OBS WebSocket request by name.
     E.g. req("GetSceneList") or req("SetCurrentProgramScene", scene_name="Gaming")
     """
+    global _connected
     client = get_req()
     if not client:
         raise RuntimeError("Not connected to OBS")
     fn = getattr(client, _to_snake(method), None)
     if fn is None:
         raise AttributeError(f"Unknown OBS request: {method}")
-    if kwargs:
-        return fn(**kwargs)
-    return fn()
+    try:
+        return fn(**kwargs) if kwargs else fn()
+    except Exception as e:
+        # Mark as disconnected if the socket is gone
+        err = str(e).lower()
+        if any(x in err for x in ("connection", "socket", "broken pipe", "eof", "closed")):
+            _connected = False
+            logger.warning("OBS connection lost: %s", e)
+        raise
 
 
 def _to_snake(name: str) -> str:

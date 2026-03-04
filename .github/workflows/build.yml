@@ -59,25 +59,31 @@ jobs:
           from pathlib import Path
           from PIL import Image, ImageDraw
 
-          path = Path("assets/icon.ico")
-          path.parent.mkdir(exist_ok=True)
-          if path.exists():
-              exit(0)
-
-          sizes = [16, 32,48, 64, 128, 256]
-          images = []
-          for size in sizes:
+          def make_frame(size):
               img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
               draw = ImageDraw.Draw(img)
-              m = max(1, size // 16)
-              draw.ellipse([m, m, size - m, size - m], fill="#7C3AED")
-              c = size // 2
-              r = max(2, size // 6)
-              draw.ellipse([c - r, c - r, c + r, c + r], fill="white")
-              images.append(img)
-          images[0].save(str(path), format="ICO", sizes=[(s, s) for s in sizes],
-                         append_images=images[1:])
-          print(f"Generated {path}")
+              s = size / 32.0
+              draw.rounded_rectangle([0, 0, size-1, size-1], radius=max(1, round(7*s)), fill="#7C3AED")
+              cx, cy = size/2, size/2
+              cr = 7 * s
+              sw = max(1, round(2*s))
+              draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], outline="white", width=sw)
+              dr = max(1, round(2.5*s))
+              draw.ellipse([cx-dr, cy-dr, cx+dr, cy+dr], fill="white")
+              lw = max(1, round(2*s))
+              cap = lw / 2
+              for (x1,y1),(x2,y2) in [((16*s,5*s),(16*s,10*s)),((16*s,22*s),(16*s,27*s)),
+                                       ((5*s,16*s),(10*s,16*s)),((22*s,16*s),(27*s,16*s))]:
+                  draw.line([(x1,y1),(x2,y2)], fill="white", width=lw)
+                  for px,py in [(x1,y1),(x2,y2)]:
+                      draw.ellipse([px-cap,py-cap,px+cap,py+cap], fill="white")
+              return img
+
+          path = Path("assets/icon.ico")
+          path.parent.mkdir(exist_ok=True)
+          base = make_frame(256)
+          base.save(str(path), format="ICO", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          print(f"Generated {path} ({path.stat().st_size} bytes)")
 
       # -----------------------------------------------------------------------
       # 6. PyInstaller — build the exe bundle

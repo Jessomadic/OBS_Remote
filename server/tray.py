@@ -20,15 +20,30 @@ from PIL import Image, ImageDraw
 from server import config
 
 
-def _create_icon_image(color: str = "#7C3AED") -> Image.Image:
-    """Generate a simple circular icon with the OBS Remote brand color."""
+def _create_icon_image() -> Image.Image:
+    """Generate the OBS Remote icon: purple rounded rect + crosshair design."""
     size = 64
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.ellipse([2, 2, size - 2, size - 2], fill=color)
-    center = size // 2
-    r = size // 6
-    draw.ellipse([center - r, center - r, center + r, center + r], fill="white")
+    s = size / 32.0
+    draw.rounded_rectangle([0, 0, size - 1, size - 1], radius=max(1, round(7 * s)), fill="#7C3AED")
+    cx, cy = size / 2, size / 2
+    cr = 7 * s
+    sw = max(1, round(2 * s))
+    draw.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], outline="white", width=sw)
+    dr = max(1, round(2.5 * s))
+    draw.ellipse([cx - dr, cy - dr, cx + dr, cy + dr], fill="white")
+    lw = max(1, round(2 * s))
+    cap = lw / 2
+    for (x1, y1), (x2, y2) in [
+        ((16 * s, 5 * s), (16 * s, 10 * s)),
+        ((16 * s, 22 * s), (16 * s, 27 * s)),
+        ((5 * s, 16 * s), (10 * s, 16 * s)),
+        ((22 * s, 16 * s), (27 * s, 16 * s)),
+    ]:
+        draw.line([(x1, y1), (x2, y2)], fill="white", width=lw)
+        for px, py in [(x1, y1), (x2, y2)]:
+            draw.ellipse([px - cap, py - cap, px + cap, py + cap], fill="white")
     return img
 
 
