@@ -29,11 +29,14 @@ def is_connected() -> bool:
 def connect(host: str, port: int, password: str):
     """Establish connection to OBS WebSocket."""
     global _req_client, _event_client, _connected
+    # obsws-python treats "" differently from None during auth handshake;
+    # pass None when there is no password so it skips authentication entirely.
+    pwd = password.strip() if password else None
     try:
-        _req_client = obs.ReqClient(host=host, port=port, password=password, timeout=3)
+        _req_client = obs.ReqClient(host=host, port=port, password=pwd, timeout=3)
         # Verify the connection is genuinely active with a real request
         _req_client.get_version()
-        _event_client = obs.EventClient(host=host, port=port, password=password)
+        _event_client = obs.EventClient(host=host, port=port, password=pwd)
         _register_events()
         _connected = True
         logger.info("Connected to OBS at %s:%d", host, port)

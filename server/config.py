@@ -46,8 +46,11 @@ def load() -> dict:
 
 def save(cfg: dict):
     _ensure_dir()
-    with open(_CONFIG_FILE, "w", encoding="utf-8") as f:
+    # Write to a temp file then rename so a crash mid-write can't corrupt the config
+    tmp = _CONFIG_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
+    tmp.replace(_CONFIG_FILE)
 
 
 def get(key: str):

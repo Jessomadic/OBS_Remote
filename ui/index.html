@@ -51,8 +51,11 @@
           </div>
           <div class="form-group">
             <label for="obs-password">Password <span class="label-optional">(optional)</span></label>
-            <input type="password" id="obs-password" placeholder="Leave blank if not set"
-              autocomplete="current-password" />
+            <div class="input-with-action">
+              <input type="password" id="obs-password" placeholder="Leave blank if not set"
+                autocomplete="current-password" />
+              <button type="button" id="obs-clear-password-btn" class="btn btn-ghost btn-sm hidden">Clear saved</button>
+            </div>
           </div>
           <div id="modal-error" class="modal-error" role="alert" aria-live="polite"></div>
           <button id="connect-btn" class="btn btn-primary btn-full">
@@ -88,8 +91,11 @@
         </div>
         <div class="form-group">
           <label for="settings-password">Password <span class="label-optional">(optional)</span></label>
-          <input type="password" id="settings-password" placeholder="Leave blank if not set"
-            autocomplete="current-password" />
+          <div class="input-with-action">
+            <input type="password" id="settings-password" placeholder="Leave blank if not set"
+              autocomplete="current-password" />
+            <button type="button" id="settings-clear-password-btn" class="btn btn-ghost btn-sm hidden">Clear saved</button>
+          </div>
         </div>
         <div id="settings-error" class="modal-error" role="alert" aria-live="polite"></div>
         <div class="modal-actions">

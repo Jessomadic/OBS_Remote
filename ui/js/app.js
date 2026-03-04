@@ -150,16 +150,25 @@
       modalTarget.textContent = `${status.obs_host}:${status.obs_port || 4455}`;
       $('#obs-host').value = status.obs_host;
       $('#obs-port').value = status.obs_port || 4455;
-      if (status.obs_has_password) {
-        $('#obs-password').placeholder = '(saved)';
-      }
     }
+    _updatePasswordUI('obs-password', 'obs-clear-password-btn', status && status.obs_has_password);
     // Always start in waiting state
     modalConfigure.classList.add('hidden');
     modalConfigureToggle.textContent = 'Change settings ▾';
     connectionModal.classList.remove('hidden');
     // Poll every 3s to auto-dismiss when OBS connects
     _startModalPoll();
+  }
+
+  // Helper: clear password field, set placeholder, show/hide Clear button
+  function _updatePasswordUI(inputId, clearBtnId, hasPassword) {
+    const field = $(`#${inputId}`);
+    const btn = $(`#${clearBtnId}`);
+    if (field) {
+      field.value = '';
+      field.placeholder = hasPassword ? '(saved)' : 'Leave blank if not set';
+    }
+    if (btn) btn.classList.toggle('hidden', !hasPassword);
   }
 
   function hideConnectionModal() {
@@ -218,6 +227,31 @@
     });
   });
 
+  // "Clear saved password" buttons — reconnect with no password and wipe the stored one
+  document.getElementById('obs-clear-password-btn').addEventListener('click', async () => {
+    const host = $('#obs-host').value.trim() || 'localhost';
+    const port = parseInt($('#obs-port').value, 10) || 4455;
+    try {
+      await api.connect(host, port, '', true);
+      _updatePasswordUI('obs-password', 'obs-clear-password-btn', false);
+      if (modalTarget) modalTarget.textContent = `${host}:${port}`;
+    } catch (err) {
+      showModalError(err.message || 'Failed to clear password.');
+    }
+  });
+
+  document.getElementById('settings-clear-password-btn').addEventListener('click', async () => {
+    const host = $('#settings-host').value.trim() || 'localhost';
+    const port = parseInt($('#settings-port').value, 10) || 4455;
+    try {
+      await api.connect(host, port, '', true);
+      _updatePasswordUI('settings-password', 'settings-clear-password-btn', false);
+      showToast('Password cleared', 'success');
+    } catch (err) {
+      showSettingsError(err.message || 'Failed to clear password.');
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Settings Modal
   // -------------------------------------------------------------------------
@@ -240,6 +274,8 @@
   settingsBtn.addEventListener('click', () => {
     settingsModal.classList.remove('hidden');
     clearSettingsError();
+    // Clear the password field so stale typed values never linger
+    $('#settings-password').value = '';
   });
 
   function closeSettings() {
@@ -509,6 +545,8 @@
       const settingsPort = document.getElementById('settings-port');
       if (settingsHost && status.obs_host) settingsHost.value = status.obs_host;
       if (settingsPort && status.obs_port) settingsPort.value = status.obs_port;
+      // Keep password placeholder and clear-button in sync with server state
+      _updatePasswordUI('settings-password', 'settings-clear-password-btn', status.obs_has_password);
 
       return status;
     } catch (err) {
@@ -533,10 +571,7 @@
   async function boot() {
     const status = await refreshStatus();
 
-    // Always fill the settings modal fields
-    if (status.obs_host) $('#settings-host').value = status.obs_host;
-    if (status.obs_port) $('#settings-port').value = status.obs_port;
-    if (status.obs_has_password) $('#settings-password').placeholder = '(saved)';
+    // Settings modal fields are populated by refreshStatus() above
 
     if (!status.obs_connected) {
       showConnectionModal(status);

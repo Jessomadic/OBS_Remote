@@ -87,9 +87,13 @@
    * @param {string} [password]
    * @returns {Promise<any>}
    */
-  function connect(host, port, password) {
+  function connect(host, port, password, clearPassword = false) {
     const body = { host, port: Number(port) };
-    if (password) body.password = password;
+    if (clearPassword) {
+      body.clear_password = true;
+    } else if (password) {
+      body.password = password;
+    }
     return post('/api/connect', body);
   }
 

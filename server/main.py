@@ -153,7 +153,7 @@ def _reconnect_loop(loop: asyncio.AbstractEventLoop):
         if not now_connected:
             cfg = config.load()
             try:
-                obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
+                obs.connect(cfg["obs_host"], cfg["obs_port"], cfg.get("obs_password", ""))
                 logger.info("Auto-reconnected to OBS")
                 now_connected = True
                 asyncio.run_coroutine_threadsafe(
@@ -180,7 +180,7 @@ async def lifespan(app: FastAPI):
 
     # Attempt initial connection from config
     try:
-        obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
+        obs.connect(cfg["obs_host"], cfg["obs_port"], cfg.get("obs_password", ""))
         logger.info("OBS connected")
     except Exception as e:
         logger.warning("OBS not available on startup: %s", e)
@@ -244,6 +244,7 @@ class ConnectRequest(BaseModel):
     host: str = "localhost"
     port: int = 4455
     password: str = ""
+    clear_password: bool = False  # Explicitly remove the saved password
 
 
 @mgmt.get("/status")
@@ -265,8 +266,16 @@ def get_status():
 async def connect_obs(body: ConnectRequest):
     obs.disconnect()
     cfg = config.load()
-    # If password field is empty, keep the already-saved password
-    password = body.password if body.password else cfg.get("obs_password", "")
+    # Determine which password to persist:
+    #  clear_password=True  → user explicitly wants no password (wipe it)
+    #  password non-empty   → user supplied a new password (strip whitespace)
+    #  password empty       → keep the existing saved password
+    if body.clear_password:
+        password = ""
+    elif body.password.strip():
+        password = body.password.strip()
+    else:
+        password = cfg.get("obs_password", "")
     config.set_value("obs_host", body.host)
     config.set_value("obs_port", body.port)
     config.set_value("obs_password", password)
