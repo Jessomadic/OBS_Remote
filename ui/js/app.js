@@ -238,6 +238,7 @@
       // broadcast which races and may arrive after initApp() starts loading data.
       if (result && result.connected) setConnectionUI(true);
       hideConnectionModal();
+      await refreshStatus(); // Sync password placeholder for both modals
       await initApp();
     } catch (err) {
       showModalError(err.message || 'Connection failed. Check host/port/password.');
@@ -297,11 +298,10 @@
     settingsError.classList.remove('visible');
   }
 
-  settingsBtn.addEventListener('click', () => {
+  settingsBtn.addEventListener('click', async () => {
     settingsModal.classList.remove('hidden');
     clearSettingsError();
-    // Clear the password field so stale typed values never linger
-    $('#settings-password').value = '';
+    await refreshStatus(); // Sync host/port/password state from server
   });
 
   function closeSettings() {
@@ -489,7 +489,8 @@
         } else if (!data.obs_connected && wasConnected) {
           showToast('OBS disconnected', 'error');
           stopAllPolling();
-          showConnectionModal(null);
+          const freshStatus = await refreshStatus();
+          showConnectionModal(freshStatus);
         } else if (!data.obs_connected && data.error) {
           // Auto-reconnect is failing — show why in the modal
           setModalConnectError(data.error);

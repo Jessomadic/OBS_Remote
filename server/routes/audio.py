@@ -51,7 +51,9 @@ def get_inputs():
                     "muted": mute_resp.input_muted,
                 })
             except Exception:
-                # Source may not support audio
+                if not obs.is_connected():
+                    raise  # Propagate transport errors — don't silently drop them
+                # Source doesn't support audio (expected) — skip it
                 continue
         return {"inputs": result}
     except Exception as e:

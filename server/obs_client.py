@@ -57,6 +57,11 @@ def connect(host: str, port: int, password: str):
         except Exception as e:
             _connected = False
             _last_connect_error = str(e)
+            try:
+                if _req_client:
+                    _req_client.disconnect()
+            except Exception:
+                pass
             _req_client = None
             _event_client = None
             logger.error("Failed to connect to OBS: %s", e)
@@ -136,7 +141,7 @@ def _register_events():
 def req(method: str, **kwargs):
     """
     Call any OBS WebSocket request by name.
-    E.g. req("GetSceneList") or req("SetCurrentProgramScene", scene_name="Gaming")
+    E.g. req("GetSceneList") or req("SetCurrentProgramScene", name="Gaming")
 
     Marks _connected=False on any transport-level failure so the reconnect loop
     can detect the dead connection and re-establish it.
