@@ -41,8 +41,8 @@ def get_inputs():
                 "vlc_source", "mediasource",
             }
             try:
-                vol_resp = obs.req("GetInputVolume", input_name=name)
-                mute_resp = obs.req("GetInputMute", input_name=name)
+                vol_resp = obs.req("GetInputVolume", name=name)
+                mute_resp = obs.req("GetInputMute", name=name)
                 result.append({
                     "name": name,
                     "kind": kind,
@@ -63,7 +63,7 @@ def set_volume(body: SetVolumeRequest):
     if not -100.0 <= body.volume_db <= 26.0:
         raise HTTPException(status_code=400, detail="volume_db must be between -100 and 26")
     try:
-        obs.req("SetInputVolume", input_name=body.input_name, input_volume_db=body.volume_db)
+        obs.req("SetInputVolume", name=body.input_name, vol_db=body.volume_db)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -72,7 +72,7 @@ def set_volume(body: SetVolumeRequest):
 @router.post("/mute")
 def set_mute(body: SetMuteRequest):
     try:
-        obs.req("SetInputMute", input_name=body.input_name, input_muted=body.muted)
+        obs.req("SetInputMute", name=body.input_name, muted=body.muted)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -81,7 +81,7 @@ def set_mute(body: SetMuteRequest):
 @router.post("/mute/toggle")
 def toggle_mute(body: SetMuteRequest):
     try:
-        obs.req("ToggleInputMute", input_name=body.input_name)
+        obs.req("ToggleInputMute", name=body.input_name)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))

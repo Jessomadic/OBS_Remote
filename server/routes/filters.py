@@ -18,7 +18,7 @@ class SetFilterEnabledRequest(BaseModel):
 def get_filters(source_name: str):
     """Get all filters on a source."""
     try:
-        resp = obs.req("GetSourceFilterList", source_name=source_name)
+        resp = obs.req("GetSourceFilterList", name=source_name)
         filters = []
         for f in resp.filters:
             filters.append({
@@ -40,7 +40,7 @@ def set_filter_enabled(body: SetFilterEnabledRequest):
             "SetSourceFilterEnabled",
             source_name=body.source_name,
             filter_name=body.filter_name,
-            filter_enabled=body.enabled,
+            enabled=body.enabled,
         )
         return {"ok": True}
     except Exception as e:

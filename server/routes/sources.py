@@ -18,7 +18,7 @@ class SetVisibilityRequest(BaseModel):
 def get_sources(scene_name: str):
     """Get all sources (scene items) in a scene with visibility state."""
     try:
-        resp = obs.req("GetSceneItemList", scene_name=scene_name)
+        resp = obs.req("GetSceneItemList", name=scene_name)
         items = []
         for item in resp.scene_items:
             items.append({
@@ -43,8 +43,8 @@ def set_visibility(body: SetVisibilityRequest):
         obs.req(
             "SetSceneItemEnabled",
             scene_name=body.scene_name,
-            scene_item_id=body.scene_item_id,
-            scene_item_enabled=body.enabled,
+            item_id=body.scene_item_id,
+            enabled=body.enabled,
         )
         return {"ok": True}
     except Exception as e:

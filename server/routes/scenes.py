@@ -32,7 +32,7 @@ def get_scenes():
 @router.post("/current")
 def set_scene(body: SetSceneRequest):
     try:
-        obs.req("SetCurrentProgramScene", scene_name=body.scene_name)
+        obs.req("SetCurrentProgramScene", name=body.scene_name)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -53,7 +53,7 @@ def get_collections():
 @router.post("/collections/current")
 def set_collection(body: SetCollectionRequest):
     try:
-        obs.req("SetCurrentSceneCollection", scene_collection_name=body.collection_name)
+        obs.req("SetCurrentSceneCollection", name=body.collection_name)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))

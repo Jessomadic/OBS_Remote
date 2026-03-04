@@ -5,6 +5,7 @@ runs it silently. The installer is expected to stop the service, replace
 files, and restart the service automatically.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -15,7 +16,6 @@ import time
 from pathlib import Path
 
 import requests
-from packaging.version import Version
 
 from server import config
 from version import __version__
@@ -27,6 +27,25 @@ _CHECK_INTERVAL = 60 * 60  # 1 hour
 _update_available: dict | None = None
 _update_applied = False
 
+# Local cache stores the asset ID of the last applied (or baseline) installer.
+# Comparing asset IDs catches new builds even when the version number hasn't changed.
+_CACHE_FILE = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "OBSRemote" / "update_cache.json"
+
+
+def _load_cache() -> dict:
+    try:
+        return json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_cache(data: dict):
+    try:
+        _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE_FILE.write_text(json.dumps(data), encoding="utf-8")
+    except Exception as e:
+        logger.warning("Could not write update cache: %s", e)
+
 
 def get_update_available() -> dict | None:
     """Returns info about a pending update, or None if up-to-date."""
@@ -34,34 +53,55 @@ def get_update_available() -> dict | None:
 
 
 def check_now() -> dict | None:
-    """Synchronously check for an update and return release info if found."""
+    """Synchronously check for an update and return release info if found.
+
+    Uses the GitHub asset ID as a fingerprint rather than the version string,
+    so a new build is detected even when the version number hasn't changed.
+    """
     global _update_available
     repo = config.get("github_repo")
+    cache = _load_cache()
     try:
         url = _GITHUB_API.format(repo=repo)
         resp = requests.get(url, timeout=10, headers={"Accept": "application/vnd.github+json"})
         resp.raise_for_status()
         data = resp.json()
-        latest_tag = data.get("tag_name", "").lstrip("v")
-        if not latest_tag:
+
+        # Find the .exe installer asset
+        exe_asset = None
+        for asset in data.get("assets", []):
+            if asset["name"].endswith(".exe"):
+                exe_asset = asset
+                break
+        if not exe_asset:
             return None
-        if Version(latest_tag) > Version(__version__):
-            # Find the .exe asset
-            exe_url = None
-            for asset in data.get("assets", []):
-                if asset["name"].endswith(".exe"):
-                    exe_url = asset["browser_download_url"]
-                    break
-            if exe_url:
-                _update_available = {
-                    "version": latest_tag,
-                    "current": __version__,
-                    "url": exe_url,
-                    "name": data.get("name", f"v{latest_tag}"),
-                    "body": data.get("body", ""),
-                }
-                logger.info("Update available: %s → %s", __version__, latest_tag)
-                return _update_available
+
+        asset_id = str(exe_asset["id"])
+        last_asset_id = cache.get("last_applied_asset_id")
+
+        # If no baseline is cached yet (fresh install), record current asset and
+        # treat this release as already applied so we don't re-run the installer.
+        if last_asset_id is None:
+            _save_cache({"last_applied_asset_id": asset_id})
+            logger.info("Update cache initialised with asset id %s", asset_id)
+            return None
+
+        if asset_id != last_asset_id:
+            latest_tag = data.get("tag_name", "").lstrip("v") or "unknown"
+            _update_available = {
+                "version": latest_tag,
+                "current": __version__,
+                "url": exe_asset["browser_download_url"],
+                "asset_id": asset_id,
+                "name": data.get("name", f"v{latest_tag}"),
+                "body": data.get("body", ""),
+            }
+            logger.info(
+                "Update available: asset %s → %s (was %s)",
+                last_asset_id, asset_id, last_asset_id,
+            )
+            return _update_available
+
     except Exception as e:
         logger.warning("Update check failed: %s", e)
     return None
@@ -81,6 +121,7 @@ def download_and_apply(update_info: dict):
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
             logger.info("Installer downloaded to %s", installer_path)
+            _save_cache({"last_applied_asset_id": update_info["asset_id"]})
             _update_applied = True
             # Run Inno Setup installer silently.
             # Use ShellExecuteW so Windows can prompt for UAC elevation

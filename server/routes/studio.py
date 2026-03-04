@@ -29,7 +29,7 @@ def get_studio_status():
 def toggle_studio():
     try:
         current = obs.req("GetStudioModeEnabled")
-        obs.req("SetStudioModeEnabled", studio_mode_enabled=not current.studio_mode_enabled)
+        obs.req("SetStudioModeEnabled", enabled=not current.studio_mode_enabled)
         return {"enabled": not current.studio_mode_enabled}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -38,7 +38,7 @@ def toggle_studio():
 @router.post("/preview")
 def set_preview(body: SetPreviewSceneRequest):
     try:
-        obs.req("SetCurrentPreviewScene", scene_name=body.scene_name)
+        obs.req("SetCurrentPreviewScene", name=body.scene_name)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
