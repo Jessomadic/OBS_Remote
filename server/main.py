@@ -12,6 +12,8 @@ import json
 import logging
 import os
 import sys
+import threading
+import time
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -125,11 +127,39 @@ def _register_obs_events(loop: asyncio.AbstractEventLoop):
 
 
 # ---------------------------------------------------------------------------
+# Auto-reconnect loop
+# ---------------------------------------------------------------------------
+
+_reconnect_loop_active = False
+
+
+def _reconnect_loop(loop: asyncio.AbstractEventLoop):
+    """Background thread: try to reconnect to OBS every 15 seconds when disconnected."""
+    global _reconnect_loop_active
+    _reconnect_loop_active = True
+    while _reconnect_loop_active:
+        time.sleep(15)
+        if obs.is_connected():
+            continue
+        cfg = config.load()
+        try:
+            obs.connect(cfg["obs_host"], cfg["obs_port"], cfg["obs_password"])
+            _register_obs_events(loop)
+            logger.info("Auto-reconnected to OBS")
+            asyncio.run_coroutine_threadsafe(
+                broadcast("obs_connected", {"connected": True}), loop
+            )
+        except Exception:
+            pass  # Still not reachable — try again next interval
+
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _reconnect_loop_active
     loop = asyncio.get_event_loop()
     cfg = config.load()
 
@@ -141,12 +171,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("OBS not available on startup: %s", e)
 
+    # Start auto-reconnect loop
+    t = threading.Thread(target=_reconnect_loop, args=(loop,), daemon=True, name="OBSReconnect")
+    t.start()
+
     # Start auto-updater
     if cfg.get("check_updates", True):
         updater.start_background_checker()
 
     yield
 
+    _reconnect_loop_active = False
     obs.disconnect()
     logger.info("OBS Remote shutdown complete")
 
